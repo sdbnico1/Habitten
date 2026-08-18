@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Habitten</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#17181C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Habitten">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ===== TODAY ===== -->
+  <section class="screen" id="screen-today" data-screen>
+    <header class="screen-header">
+      <div class="header-titles">
+        <div class="eyebrow" id="today-date">Loading…</div>
+        <h1>Today</h1>
+      </div>
+      <div class="ring-wrap">
+        <svg viewBox="0 0 64 64" class="ring">
+          <circle cx="32" cy="32" r="27" class="ring-track"/>
+          <circle cx="32" cy="32" r="27" class="ring-fill" id="today-ring"/>
+        </svg>
+        <span class="ring-label" id="today-ring-label">0/0</span>
+      </div>
+    </header>
+
+    <div class="list" id="today-list"></div>
+    <div class="empty-state" id="today-empty" hidden>
+      <div class="empty-icon">🔥</div>
+      <p>No habits yet.</p>
+      <p class="empty-sub">Add your first one in the Habits tab.</p>
+    </div>
+  </section>
+
+  <!-- ===== HABITS ===== -->
+  <section class="screen" id="screen-habits" data-screen hidden>
+    <header class="screen-header">
+      <div class="header-titles">
+        <div class="eyebrow">Manage</div>
+        <h1>Habits</h1>
+      </div>
+      <button class="icon-btn" id="add-habit-btn" aria-label="Add habit">+</button>
+    </header>
+
+    <div class="group-label">Active</div>
+    <div class="list" id="habits-active-list"></div>
+
+    <div class="group-label" id="archived-label" hidden>Archived</div>
+    <div class="list" id="habits-archived-list"></div>
+  </section>
+
+  <!-- ===== JOURNAL ===== -->
+  <section class="screen" id="screen-journal" data-screen hidden>
+    <header class="screen-header">
+      <div class="header-titles">
+        <div class="eyebrow">Reflect</div>
+        <h1>Journal</h1>
+      </div>
+      <button class="icon-btn" id="add-journal-btn" aria-label="New entry">+</button>
+    </header>
+
+    <div class="list" id="journal-list"></div>
+    <div class="empty-state" id="journal-empty" hidden>
+      <div class="empty-icon">📝</div>
+      <p>No entries yet.</p>
+      <p class="empty-sub">Tap + to write about today.</p>
+    </div>
+  </section>
+
+  <!-- ===== STATS ===== -->
+  <section class="screen" id="screen-stats" data-screen hidden>
+    <header class="screen-header">
+      <div class="header-titles">
+        <div class="eyebrow">Progress</div>
+        <h1>Stats</h1>
+      </div>
+    </header>
+
+    <div class="stat-tiles">
+      <div class="stat-tile">
+        <div class="stat-value" id="stat-points">0</div>
+        <div class="stat-label">Total Points</div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-value" id="stat-best-streak">0</div>
+        <div class="stat-label">Best Streak</div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-value" id="stat-active">0</div>
+        <div class="stat-label">Active Habits</div>
+      </div>
+    </div>
+
+    <div class="group-label">Per Habit</div>
+    <div class="list" id="stats-list"></div>
+  </section>
+
+  <!-- ===== TAB BAR ===== -->
+  <nav class="tabbar">
+    <button class="tab active" data-tab="today">
+      <span class="tab-icon">✓</span><span>Today</span>
+    </button>
+    <button class="tab" data-tab="habits">
+      <span class="tab-icon">≡</span><span>Habits</span>
+    </button>
+    <button class="tab" data-tab="journal">
+      <span class="tab-icon">📖</span><span>Journal</span>
+    </button>
+    <button class="tab" data-tab="stats">
+      <span class="tab-icon">📊</span><span>Stats</span>
+    </button>
+  </nav>
+</div>
+
+<!-- ===== MODALS ===== -->
+<div class="sheet-backdrop" id="habit-sheet-backdrop" hidden>
+  <div class="sheet">
+    <div class="sheet-header">
+      <button class="sheet-cancel" id="habit-cancel">Cancel</button>
+      <h2 id="habit-sheet-title">New Habit</h2>
+      <button class="sheet-save" id="habit-save">Save</button>
+    </div>
+    <div class="sheet-body">
+      <label class="field-label">Name</label>
+      <input type="text" id="habit-name-input" placeholder="e.g. Read 10 pages" class="text-input">
+
+      <label class="field-label">Icon</label>
+      <div class="icon-grid" id="icon-grid"></div>
+
+      <label class="field-label">Color</label>
+      <div class="color-grid" id="color-grid"></div>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-backdrop" id="journal-sheet-backdrop" hidden>
+  <div class="sheet">
+    <div class="sheet-header">
+      <button class="sheet-cancel" id="journal-cancel">Cancel</button>
+      <h2>Today's Entry</h2>
+      <button class="sheet-save" id="journal-save">Save</button>
+    </div>
+    <div class="sheet-body">
+      <label class="field-label">Mood</label>
+      <div class="mood-picker" id="mood-picker">
+        <button data-mood="1">😞</button>
+        <button data-mood="2">😕</button>
+        <button data-mood="3">😐</button>
+        <button data-mood="4">🙂</button>
+        <button data-mood="5">😄</button>
+      </div>
+      <label class="field-label">Reflection</label>
+      <textarea id="journal-text-input" placeholder="What worked today? What didn't?"></textarea>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/sync.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
