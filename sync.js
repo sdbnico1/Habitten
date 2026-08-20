@@ -11,7 +11,7 @@ if (CONFIG.SUPABASE_URL && !CONFIG.SUPABASE_URL.startsWith("PASTE_")) {
 }
 
 function defaultState() {
-  return { habits: [], journal: [], workoutPBs: {}, updatedAt: 0 };
+  return { habits: [], journal: [], workoutPBs: {}, settings: { accentColor: "#FF6A3D", categoryLabels: {} }, updatedAt: 0 };
 }
 
 function loadLocal() {

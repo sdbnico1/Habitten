@@ -6,18 +6,30 @@ const COLORS = ["#FF6A3D", "#5FD98A", "#4A90D9", "#F1C40F", "#9B59B6", "#1ABC9C"
 let pendingHabitId = null;
 let pendingIcon = ICONS[0];
 let pendingColor = COLORS[0];
-let pendingCategory = null;
+let pendingCategories = [];
 let pendingMood = 3;
 let pendingExerciseKey = null;
+let pendingAccentColor = COLORS[0];
 
 // ---------- pentagon categories ----------
 const CATEGORIES = [
-  { key: "discipline", label: "Discipline" },
-  { key: "health", label: "Health" },
-  { key: "focus", label: "Focus" },
-  { key: "energy", label: "Energy" },
-  { key: "mindfulness", label: "Mindfulness" },
+  { key: "discipline", label: "Discipline", short: "Disc" },
+  { key: "health", label: "Health", short: "Health" },
+  { key: "focus", label: "Focus", short: "Focus" },
+  { key: "energy", label: "Energy", short: "Energy" },
+  { key: "mindfulness", label: "Mindfulness", short: "Mindful" },
 ];
+
+function categoryLabel(key) {
+  const custom = state.settings?.categoryLabels?.[key];
+  if (custom) return custom;
+  return CATEGORIES.find(c => c.key === key)?.label || key;
+}
+function categoryShortLabel(key) {
+  const custom = state.settings?.categoryLabels?.[key];
+  if (custom) return custom.length > 7 ? custom.slice(0, 6) + "…" : custom;
+  return CATEGORIES.find(c => c.key === key)?.short || key;
+}
 
 // ---------- workout exercises & rank tiers ----------
 const TIERS = [
@@ -47,6 +59,28 @@ function tierIndexForValue(exercise, value) {
   let idx = -1;
   exercise.thresholds.forEach((t, i) => { if (value >= t) idx = i; });
   return idx; // -1 = below Bronze, 0..4 = tier reached
+}
+
+// Medal icon for Bronze/Silver/Gold, faceted gem for Platinum/Diamond -
+// a consistent visual language that still escalates with rank.
+function tierIconSvg(tierIndex, size = 24) {
+  if (tierIndex < 0) return "";
+  const tier = TIERS[tierIndex];
+  const c = tier.color;
+  if (tierIndex <= 2) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24">
+      <circle cx="12" cy="13" r="8" fill="${c}"/>
+      <circle cx="12" cy="13" r="8" fill="none" stroke="#00000030" stroke-width="1"/>
+      <path d="M9 3 L7 9 L12 13 L17 9 L15 3 Z" fill="${c}" opacity="0.85"/>
+      <path d="M12 8.5 L14 12 L12 17 L10 12 Z" fill="#FFFFFF" opacity="0.9"/>
+    </svg>`;
+  }
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24">
+    <path d="M12 2 L20 9 L12 22 L4 9 Z" fill="${c}"/>
+    <path d="M12 2 L20 9 L12 12 Z" fill="#FFFFFF" opacity="0.35"/>
+    <path d="M4 9 L12 12 L12 22 Z" fill="#000000" opacity="0.12"/>
+    <path d="M12 2 L4 9 L12 12 Z" fill="#FFFFFF" opacity="0.15"/>
+  </svg>`;
 }
 
 // ---------- date helpers ----------
@@ -91,8 +125,14 @@ function completionRate(habit) {
   return Math.min(1, (habit.completions || []).length / days);
 }
 
+function habitCategories(h) {
+  if (Array.isArray(h.categories)) return h.categories;
+  if (h.category) return [h.category];
+  return [];
+}
+
 function categoryScore(categoryKey) {
-  const habits = activeHabits().filter(h => h.category === categoryKey);
+  const habits = activeHabits().filter(h => habitCategories(h).includes(categoryKey));
   if (!habits.length) return 0;
   const scores = habits.map(h => {
     const rate = completionRate(h);               // 0-1
@@ -122,7 +162,8 @@ function renderAll() {
 // ---------- pentagon chart ----------
 function renderPentagon() {
   const svg = document.getElementById("pentagon-svg");
-  const cx = 120, cy = 105, maxR = 85;
+  svg.setAttribute("viewBox", "0 0 300 280");
+  const cx = 150, cy = 148, maxR = 68;
   const n = CATEGORIES.length;
   const angleFor = (i) => -Math.PI / 2 + (i * 2 * Math.PI) / n;
 
@@ -159,12 +200,13 @@ function renderPentagon() {
     svgContent += `<circle cx="${x}" cy="${y}" r="3.5" fill="var(--ember)"/>`;
   });
 
-  // labels
+  // labels - abbreviated + custom names, clamped anchor, generous margin
   CATEGORIES.forEach((c, i) => {
-    const [x, y] = pointAt(i, maxR + 22);
-    const anchor = Math.abs(x - cx) < 4 ? "middle" : (x > cx ? "start" : "end");
-    svgContent += `<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="11" fill="var(--text-secondary)" font-family="var(--font-body)">${c.label}</text>`;
-    svgContent += `<text x="${x}" y="${y + 13}" text-anchor="${anchor}" font-size="11" font-weight="700" fill="var(--text)" font-family="var(--font-rounded)">${scores[i]}</text>`;
+    const [x, y] = pointAt(i, maxR + 34);
+    const anchor = Math.abs(x - cx) < 6 ? "middle" : (x > cx ? "start" : "end");
+    const label = categoryShortLabel(c.key);
+    svgContent += `<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="12" fill="var(--text-secondary)" font-family="var(--font-body)">${escapeHtml(label)}</text>`;
+    svgContent += `<text x="${x}" y="${y + 15}" text-anchor="${anchor}" font-size="13" font-weight="700" fill="var(--text)" font-family="var(--font-rounded)">${scores[i]}</text>`;
   });
 
   svg.innerHTML = svgContent;
@@ -188,7 +230,7 @@ function renderWorkout() {
 
   if (overallIdx >= 0) {
     const tier = TIERS[overallIdx];
-    badge.textContent = "🏅";
+    badge.innerHTML = tierIconSvg(overallIdx, 32);
     badge.style.borderColor = tier.color;
     badge.style.background = tier.color + "22";
     title.textContent = `${tier.label} Rank`;
@@ -217,7 +259,7 @@ function renderWorkout() {
           <div class="row-title">${e.name}</div>
           <div class="row-sub">${sub}</div>
         </div>
-        ${tier ? `<span class="tier-pill" style="background:${tier.color}22;color:${tier.color}">${tier.label}</span>` : ""}
+        ${tier ? `<span class="tier-pill" style="background:${tier.color}22;color:${tier.color};display:flex;align-items:center;gap:4px">${tierIconSvg(idx, 16)}${tier.label}</span>` : ""}
       </div>
     `;
   }).join("");
@@ -338,6 +380,7 @@ function renderHabitsList() {
       <span class="row-percent">${Math.round(completionRate(h) * 100)}%</span>
       <button class="row-action" data-edit="${h.id}">Edit</button>
       <button class="row-action muted" data-archive="${h.id}">Archive</button>
+      <button class="row-action danger" data-delete-active="${h.id}">Delete</button>
     </div>
   `).join("") || `<div class="row"><div class="row-sub">No active habits</div></div>`;
 
@@ -354,6 +397,11 @@ function renderHabitsList() {
   activeList.querySelectorAll("[data-archive]").forEach(b => b.addEventListener("click", () => {
     const h = state.habits.find(x => x.id === b.dataset.archive);
     h.archived = true; commit();
+  }));
+  activeList.querySelectorAll("[data-delete-active]").forEach(b => b.addEventListener("click", () => {
+    if (!confirm("Delete this habit and all its history? This can't be undone.")) return;
+    state.habits = state.habits.filter(x => x.id !== b.dataset.deleteActive);
+    commit();
   }));
   archivedList.querySelectorAll("[data-restore]").forEach(b => b.addEventListener("click", () => {
     const h = state.habits.find(x => x.id === b.dataset.restore);
@@ -377,11 +425,20 @@ function renderJournal() {
     <div class="journal-card">
       <div class="journal-card-head">
         <span class="journal-date">${isoToDate(e.date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</span>
-        <span>${moodEmoji[e.mood - 1]}</span>
+        <span style="display:flex;align-items:center;gap:10px">
+          <span>${moodEmoji[e.mood - 1]}</span>
+          <button class="row-action danger" data-delete-journal="${e.id}" style="padding:0">Delete</button>
+        </span>
       </div>
       <div class="journal-text">${escapeHtml(e.text) || "<em>No notes</em>"}</div>
     </div>
   `).join("");
+
+  list.querySelectorAll("[data-delete-journal]").forEach(b => b.addEventListener("click", () => {
+    if (!confirm("Delete this journal entry?")) return;
+    state.journal = state.journal.filter(x => x.id !== b.dataset.deleteJournal);
+    commit();
+  }));
 }
 
 function renderStats() {
@@ -432,18 +489,23 @@ function buildPickers() {
     highlightPickers();
   }));
 
+  buildCategoryGrid();
+}
+function buildCategoryGrid() {
   const categoryGrid = document.getElementById("category-grid");
-  categoryGrid.innerHTML = CATEGORIES.map(c => `<button data-category="${c.key}">${c.label}</button>`).join("")
-    + `<button data-category="">None</button>`;
+  categoryGrid.innerHTML = CATEGORIES.map(c => `<button data-category="${c.key}">${escapeHtml(categoryLabel(c.key))}</button>`).join("");
   categoryGrid.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
-    pendingCategory = b.dataset.category || null;
+    const key = b.dataset.category;
+    const idx = pendingCategories.indexOf(key);
+    if (idx >= 0) pendingCategories.splice(idx, 1);
+    else pendingCategories.push(key);
     highlightPickers();
   }));
 }
 function highlightPickers() {
   document.querySelectorAll("#icon-grid button").forEach(b => b.classList.toggle("selected", b.dataset.icon === pendingIcon));
   document.querySelectorAll("#color-grid button").forEach(b => b.classList.toggle("selected", b.dataset.color === pendingColor));
-  document.querySelectorAll("#category-grid button").forEach(b => b.classList.toggle("selected", (b.dataset.category || null) === pendingCategory));
+  document.querySelectorAll("#category-grid button").forEach(b => b.classList.toggle("selected", pendingCategories.includes(b.dataset.category)));
 }
 
 function openHabitSheet(habitId) {
@@ -453,7 +515,8 @@ function openHabitSheet(habitId) {
   document.getElementById("habit-name-input").value = h ? h.name : "";
   pendingIcon = h ? h.icon : ICONS[0];
   pendingColor = h ? h.color : COLORS[0];
-  pendingCategory = h ? (h.category || null) : null;
+  pendingCategories = h ? habitCategories(h) : [];
+  buildCategoryGrid();
   highlightPickers();
   document.getElementById("habit-sheet-backdrop").hidden = false;
 }
@@ -464,10 +527,11 @@ function saveHabitFromSheet() {
   if (!name) return;
   if (pendingHabitId) {
     const h = state.habits.find(x => x.id === pendingHabitId);
-    h.name = name; h.icon = pendingIcon; h.color = pendingColor; h.category = pendingCategory;
+    h.name = name; h.icon = pendingIcon; h.color = pendingColor; h.categories = pendingCategories.slice();
+    delete h.category;
   } else {
     state.habits.push({
-      id: uid(), name, icon: pendingIcon, color: pendingColor, category: pendingCategory,
+      id: uid(), name, icon: pendingIcon, color: pendingColor, categories: pendingCategories.slice(),
       createdAt: new Date().toISOString(), archived: false,
       sortOrder: state.habits.length, completions: []
     });
@@ -498,6 +562,65 @@ function saveJournalFromSheet() {
   closeJournalSheet();
   commit();
   showToast("Saved");
+}
+
+// ---------- settings sheet ----------
+function applyAccentColor(color) {
+  document.documentElement.style.setProperty("--ember", color);
+}
+
+function openSettingsSheet() {
+  state.settings = state.settings || { accentColor: COLORS[0], categoryLabels: {} };
+  pendingAccentColor = state.settings.accentColor || COLORS[0];
+
+  const colorGrid = document.getElementById("settings-color-grid");
+  colorGrid.innerHTML = COLORS.map(c => `<button data-accent="${c}" style="background:${c}"></button>`).join("");
+  colorGrid.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
+    pendingAccentColor = b.dataset.accent;
+    highlightSettingsColor();
+    applyAccentColor(pendingAccentColor); // live preview
+  }));
+  highlightSettingsColor();
+
+  const catList = document.getElementById("settings-category-list");
+  catList.innerHTML = CATEGORIES.map(c => `
+    <div class="settings-category-row">
+      <span>${c.label}</span>
+      <input type="text" data-cat-key="${c.key}" value="${escapeHtml(state.settings.categoryLabels?.[c.key] || "")}" placeholder="${c.label}">
+    </div>
+  `).join("");
+
+  document.getElementById("settings-sheet-backdrop").hidden = false;
+}
+function highlightSettingsColor() {
+  document.querySelectorAll("#settings-color-grid button").forEach(b => b.classList.toggle("selected", b.dataset.accent === pendingAccentColor));
+}
+function closeSettingsSheet() {
+  document.getElementById("settings-sheet-backdrop").hidden = true;
+  applyAccentColor(state.settings?.accentColor || COLORS[0]); // revert preview if not saved
+}
+function saveSettingsFromSheet() {
+  state.settings = state.settings || {};
+  state.settings.accentColor = pendingAccentColor;
+  state.settings.categoryLabels = state.settings.categoryLabels || {};
+  document.querySelectorAll("#settings-category-list input").forEach(input => {
+    const val = input.value.trim();
+    if (val) state.settings.categoryLabels[input.dataset.catKey] = val;
+    else delete state.settings.categoryLabels[input.dataset.catKey];
+  });
+  applyAccentColor(state.settings.accentColor);
+  document.getElementById("settings-sheet-backdrop").hidden = true;
+  commit();
+  showToast("Settings saved");
+}
+function resetAllData() {
+  if (!confirm("This deletes every habit, journal entry, and workout record on this device and in sync. This can't be undone. Continue?")) return;
+  if (!confirm("Really sure? This is permanent.")) return;
+  state = defaultState();
+  applyAccentColor(COLORS[0]);
+  commit();
+  document.getElementById("settings-sheet-backdrop").hidden = true;
+  showToast("All data cleared");
 }
 
 // ---------- toast ----------
@@ -534,6 +657,11 @@ function wireEvents() {
 
   document.getElementById("pb-cancel").addEventListener("click", closePbSheet);
   document.getElementById("pb-save").addEventListener("click", savePbFromSheet);
+
+  document.getElementById("open-settings-btn").addEventListener("click", openSettingsSheet);
+  document.getElementById("settings-cancel").addEventListener("click", closeSettingsSheet);
+  document.getElementById("settings-save").addEventListener("click", saveSettingsFromSheet);
+  document.getElementById("reset-data-btn").addEventListener("click", resetAllData);
 }
 
 // ---------- boot ----------
@@ -542,6 +670,8 @@ function wireEvents() {
   wireEvents();
   state = await initState();
   if (!state.habits) state = defaultState();
+  state.settings = state.settings || { accentColor: COLORS[0], categoryLabels: {} };
+  applyAccentColor(state.settings.accentColor || COLORS[0]);
   renderAll();
 
   if ("serviceWorker" in navigator) {

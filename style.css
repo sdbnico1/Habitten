@@ -217,6 +217,32 @@ button, input, textarea {
   padding: 6px 4px;
 }
 .row-action.muted { color: var(--text-secondary); }
+.row-action.danger { color: var(--danger); }
+
+.settings-category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.settings-category-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.settings-category-row span {
+  font-size: 12px;
+  color: var(--text-secondary);
+  width: 64px;
+  flex-shrink: 0;
+}
+.settings-category-row input {
+  flex: 1;
+  background: var(--surface-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-size: 14px;
+}
 
 /* ===== Empty states ===== */
 .empty-state {

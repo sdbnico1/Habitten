@@ -84,6 +84,7 @@
         <div class="eyebrow">Progress</div>
         <h1>Stats</h1>
       </div>
+      <button class="icon-btn" id="open-settings-btn" aria-label="Settings">⚙</button>
     </header>
 
     <div class="stat-tiles">
@@ -170,7 +171,7 @@
       <label class="field-label">Color</label>
       <div class="color-grid" id="color-grid"></div>
 
-      <label class="field-label">Category</label>
+      <label class="field-label">Categories (pick any that apply)</label>
       <div class="category-grid" id="category-grid"></div>
     </div>
   </div>
@@ -209,6 +210,26 @@
       <label class="field-label" id="pb-field-label">Your best</label>
       <input type="number" id="pb-value-input" placeholder="0" class="text-input" inputmode="decimal">
       <div class="pb-tier-preview" id="pb-tier-preview"></div>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-backdrop" id="settings-sheet-backdrop" hidden>
+  <div class="sheet">
+    <div class="sheet-header">
+      <button class="sheet-cancel" id="settings-cancel">Close</button>
+      <h2>Settings</h2>
+      <button class="sheet-save" id="settings-save">Save</button>
+    </div>
+    <div class="sheet-body">
+      <label class="field-label">Accent Color</label>
+      <div class="color-grid" id="settings-color-grid"></div>
+
+      <label class="field-label">Rename Stat Categories</label>
+      <div class="settings-category-list" id="settings-category-list"></div>
+
+      <label class="field-label">Data</label>
+      <button class="row-action danger" id="reset-data-btn" style="padding:10px 0">Reset all data…</button>
     </div>
   </div>
 </div>
