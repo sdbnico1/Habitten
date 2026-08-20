@@ -327,6 +327,9 @@ button, input, textarea {
   align-items: flex-end;
   z-index: 50;
 }
+
+.sheet-backdrop[hidden] { display: none; }
+
 .sheet {
   background: var(--surface);
   width: 100%;
