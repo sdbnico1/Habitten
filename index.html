@@ -101,8 +101,35 @@
       </div>
     </div>
 
+    <div class="group-label">Balance</div>
+    <div class="pentagon-card" id="pentagon-card">
+      <svg viewBox="0 0 240 220" id="pentagon-svg"></svg>
+      <div class="pentagon-hint" id="pentagon-hint" hidden>Tag habits with a category (Habits tab → edit) to fill this in.</div>
+    </div>
+
     <div class="group-label">Per Habit</div>
     <div class="list" id="stats-list"></div>
+  </section>
+
+  <!-- ===== WORKOUT ===== -->
+  <section class="screen" id="screen-workout" data-screen hidden>
+    <header class="screen-header">
+      <div class="header-titles">
+        <div class="eyebrow">Personal Bests</div>
+        <h1>Workout</h1>
+      </div>
+    </header>
+
+    <div class="rank-banner" id="rank-banner">
+      <div class="rank-badge-lg" id="rank-badge-lg">—</div>
+      <div>
+        <div class="rank-title" id="rank-title">Unranked</div>
+        <div class="rank-sub" id="rank-sub">Log a result below to get ranked</div>
+      </div>
+    </div>
+
+    <div class="group-label">Exercises</div>
+    <div class="list" id="workout-list"></div>
   </section>
 
   <!-- ===== TAB BAR ===== -->
@@ -115,6 +142,9 @@
     </button>
     <button class="tab" data-tab="journal">
       <span class="tab-icon">📖</span><span>Journal</span>
+    </button>
+    <button class="tab" data-tab="workout">
+      <span class="tab-icon">🏋️</span><span>Workout</span>
     </button>
     <button class="tab" data-tab="stats">
       <span class="tab-icon">📊</span><span>Stats</span>
@@ -139,6 +169,9 @@
 
       <label class="field-label">Color</label>
       <div class="color-grid" id="color-grid"></div>
+
+      <label class="field-label">Category</label>
+      <div class="category-grid" id="category-grid"></div>
     </div>
   </div>
 </div>
@@ -161,6 +194,21 @@
       </div>
       <label class="field-label">Reflection</label>
       <textarea id="journal-text-input" placeholder="What worked today? What didn't?"></textarea>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-backdrop" id="pb-sheet-backdrop" hidden>
+  <div class="sheet">
+    <div class="sheet-header">
+      <button class="sheet-cancel" id="pb-cancel">Cancel</button>
+      <h2 id="pb-sheet-title">Log Result</h2>
+      <button class="sheet-save" id="pb-save">Save</button>
+    </div>
+    <div class="sheet-body">
+      <label class="field-label" id="pb-field-label">Your best</label>
+      <input type="number" id="pb-value-input" placeholder="0" class="text-input" inputmode="decimal">
+      <div class="pb-tier-preview" id="pb-tier-preview"></div>
     </div>
   </div>
 </div>
