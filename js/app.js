@@ -33,14 +33,14 @@ function categoryShortLabel(key) {
 
 // ---------- workout exercises & rank tiers ----------
 const TIERS = [
-  { key: "iron", label: "Iron", color: "#8A8D91" },
   { key: "bronze", label: "Bronze", color: "#CD7F32" },
   { key: "silver", label: "Silver", color: "#B9C2CB" },
+  { key: "iron", label: "Iron", color: "#8A8D91" },
   { key: "gold", label: "Gold", color: "#F1C40F" },
   { key: "platinum", label: "Platinum", color: "#7FE7E0" },
   { key: "diamond", label: "Diamond", color: "#7FB2FF" },
   { key: "master", label: "Master", color: "#C77DFF" },
-  { key: "grandmaster", label: "Grandmaster", color: "#FF4D6A" },
+  { key: "champion", label: "Champion", color: "#FF4D6A" },
 ];
 
 const EXERCISES = [
@@ -244,9 +244,9 @@ function categoryScore(categoryKey) {
   const hasQuiz = quizScore !== undefined && quizScore !== null;
   if (!hasHabits && !hasQuiz) return 0;
 
-  const perPoint = Math.max(1, state.settings?.completionsPerPoint || 5);
+  const COMPLETIONS_PER_POINT = 2; // locked - not user-adjustable
   const totalCompletions = habits.reduce((sum, h) => sum + (h.completions || []).length, 0);
-  const earnedPoints = Math.floor(totalCompletions / perPoint);
+  const earnedPoints = Math.floor(totalCompletions / COMPLETIONS_PER_POINT);
 
   const base = hasQuiz ? quizScore : 50;
   return Math.round(clamp(base + earnedPoints, 0, 100));
@@ -444,9 +444,19 @@ function timeLabel(t) {
 function renderToday() {
   const list = document.getElementById("today-list");
   const empty = document.getElementById("today-empty");
-  const habits = activeHabits().slice().sort((a, b) => (a.scheduledTime || "23:59").localeCompare(b.scheduledTime || "23:59"));
-  document.getElementById("today-date").textContent =
-    new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+  let habits = activeHabits().slice().sort((a, b) => (a.scheduledTime || "23:59").localeCompare(b.scheduledTime || "23:59"));
+  if (state.settings?.sinkCompleted) {
+    const today = todayISO();
+    habits = habits.slice().sort((a, b) => {
+      const aDone = (a.completions || []).includes(today) ? 1 : 0;
+      const bDone = (b.completions || []).includes(today) ? 1 : 0;
+      return aDone - bDone;
+    });
+  }
+  const name = state.settings?.userName;
+  document.getElementById("today-date").textContent = name
+    ? `${name} · ${new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}`
+    : new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
 
   list.innerHTML = "";
   empty.hidden = habits.length > 0;
@@ -859,7 +869,8 @@ function openSettingsSheet() {
     </div>
   `).join("");
 
-  document.getElementById("completions-per-point-input").value = state.settings.completionsPerPoint || 5;
+  document.getElementById("settings-name-input").value = state.settings.userName || "";
+  document.getElementById("settings-sink-completed").checked = !!state.settings.sinkCompleted;
 
   document.getElementById("settings-sheet-backdrop").hidden = false;
 }
@@ -879,13 +890,46 @@ function saveSettingsFromSheet() {
     if (val) state.settings.categoryLabels[input.dataset.catKey] = val;
     else delete state.settings.categoryLabels[input.dataset.catKey];
   });
-  const perPoint = Number(document.getElementById("completions-per-point-input").value);
-  state.settings.completionsPerPoint = perPoint > 0 ? perPoint : 5;
   applyAccentColor(state.settings.accentColor);
+  state.settings.userName = document.getElementById("settings-name-input").value.trim();
+  state.settings.sinkCompleted = document.getElementById("settings-sink-completed").checked;
   document.getElementById("settings-sheet-backdrop").hidden = true;
   commit();
   showToast("Settings saved");
 }
+function exportBackup() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `habitten-backup-${todayISO()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast("Backup downloaded");
+}
+
+function importBackup(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(reader.result);
+      if (!parsed || !Array.isArray(parsed.habits)) throw new Error("Not a Habitten backup file");
+      if (!confirm("This replaces all current data on this device with the backup. Continue?")) return;
+      state = parsed;
+      state.updatedAt = Date.now();
+      applyAccentColor(state.settings?.accentColor || COLORS[0]);
+      commit();
+      document.getElementById("settings-sheet-backdrop").hidden = true;
+      showToast("Backup restored");
+    } catch (e) {
+      alert("That file doesn't look like a valid Habitten backup.");
+    }
+  };
+  reader.readAsText(file);
+}
+
 function resetAllData() {
   if (!confirm("This deletes every habit, journal entry, and workout record on this device and in sync. This can't be undone. Continue?")) return;
   if (!confirm("Really sure? This is permanent.")) return;
@@ -935,6 +979,11 @@ function wireEvents() {
   document.getElementById("settings-cancel").addEventListener("click", closeSettingsSheet);
   document.getElementById("settings-save").addEventListener("click", saveSettingsFromSheet);
   document.getElementById("reset-data-btn").addEventListener("click", resetAllData);
+  document.getElementById("export-data-btn").addEventListener("click", exportBackup);
+  document.getElementById("import-data-input").addEventListener("change", (e) => {
+    if (e.target.files[0]) importBackup(e.target.files[0]);
+    e.target.value = "";
+  });
 
   document.getElementById("open-quiz-btn").addEventListener("click", openQuizSheet);
   document.getElementById("quiz-close").addEventListener("click", closeQuizSheet);
