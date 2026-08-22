@@ -125,6 +125,100 @@ function completionRate(habit) {
   return Math.min(1, (habit.completions || []).length / days);
 }
 
+// ---------- stat check-in quiz ----------
+// Each question nudges one category up or down relative to a realistic
+// "average" or "ideal" reference point. Mixed question types on purpose -
+// sliders, hour/minute toggles, yes/no, 1-5 scales - so the check-in
+// doesn't feel repetitive.
+const QUIZ_QUESTIONS = [
+  { id: "phone", category: "discipline", prompt: "How much time do you spend on your phone in a typical day?",
+    type: "slider_unit", unitToggle: true, min: 0, max: 12, avgHours: 4, direction: "lower_better", points: 15 },
+  { id: "snooze", category: "discipline", prompt: "How many times do you hit snooze before actually getting up?",
+    type: "slider", unit: "times", min: 0, max: 10, step: 1, avg: 2, direction: "lower_better", points: 10 },
+  { id: "bed", category: "discipline", prompt: "Do you make your bed most mornings?",
+    type: "toggle", goodLabel: "Yes", badLabel: "No", points: 8 },
+  { id: "procrastinate", category: "discipline", prompt: "How often do you put off tasks you know you should just do?",
+    type: "scale", labels: ["Never", "Rarely", "Sometimes", "Often", "Always"], direction: "lower_better", points: 12 },
+
+  { id: "sleep", category: "health", prompt: "How many hours of sleep do you usually get a night?",
+    type: "slider", unit: "hrs", min: 3, max: 11, step: 0.5, ideal: 7.5, direction: "ideal", points: 15 },
+  { id: "water", category: "health", prompt: "How many glasses of water do you drink in a typical day?",
+    type: "slider", unit: "glasses", min: 0, max: 12, step: 1, avg: 6, direction: "higher_better", points: 10 },
+  { id: "exercise_days", category: "health", prompt: "How many days a week do you get real exercise?",
+    type: "slider", unit: "days", min: 0, max: 7, step: 1, avg: 3, direction: "higher_better", points: 15 },
+  { id: "fastfood", category: "health", prompt: "How many times a week do you eat fast food or takeout?",
+    type: "slider", unit: "times", min: 0, max: 10, step: 1, avg: 2, direction: "lower_better", points: 10 },
+
+  { id: "deepwork", category: "focus", prompt: "How many hours of real, uninterrupted focus do you get most days?",
+    type: "slider", unit: "hrs", min: 0, max: 8, step: 0.5, avg: 2, direction: "higher_better", points: 15 },
+  { id: "multitask", category: "focus", prompt: "How often do you find yourself juggling several tasks instead of one?",
+    type: "scale", labels: ["Never", "Rarely", "Sometimes", "Often", "Always"], direction: "lower_better", points: 10 },
+  { id: "notif_checks", category: "focus", prompt: "Roughly how many times an hour do you check notifications while working?",
+    type: "slider", unit: "times/hr", min: 0, max: 20, step: 1, avg: 6, direction: "lower_better", points: 12 },
+  { id: "single_task", category: "focus", prompt: "Do you usually finish one task before starting the next?",
+    type: "toggle", goodLabel: "Yes", badLabel: "No", points: 8 },
+
+  { id: "energy_rating", category: "energy", prompt: "How would you rate your energy on a typical day?",
+    type: "scale", labels: ["Drained", "Low", "OK", "Good", "Energized"], direction: "higher_better", points: 15 },
+  { id: "caffeine", category: "energy", prompt: "How many caffeinated drinks do you have in a day?",
+    type: "slider", unit: "drinks", min: 0, max: 6, step: 1, avg: 2, direction: "lower_better", points: 8 },
+  { id: "sedentary", category: "energy", prompt: "How many hours a day do you spend mostly sitting?",
+    type: "slider", unit: "hrs", min: 0, max: 14, step: 1, avg: 8, direction: "lower_better", points: 12 },
+  { id: "morning_movement", category: "energy", prompt: "Do you move your body (walk, stretch, workout) within an hour of waking up?",
+    type: "toggle", goodLabel: "Yes", badLabel: "No", points: 10 },
+
+  { id: "meditation", category: "mindfulness", prompt: "How many minutes a day do you spend on meditation or quiet reflection?",
+    type: "slider", unit: "min", min: 0, max: 60, step: 5, avg: 10, direction: "higher_better", points: 15 },
+  { id: "stress", category: "mindfulness", prompt: "How often do you feel overwhelmed by stress?",
+    type: "scale", labels: ["Never", "Rarely", "Sometimes", "Often", "Always"], direction: "lower_better", points: 12 },
+  { id: "journal_reflect", category: "mindfulness", prompt: "Do you regularly reflect on or journal about your day?",
+    type: "toggle", goodLabel: "Yes", badLabel: "No", points: 8 },
+  { id: "nature", category: "mindfulness", prompt: "How many days a week do you spend meaningful time outdoors?",
+    type: "slider", unit: "days", min: 0, max: 7, step: 1, avg: 2, direction: "higher_better", points: 10 },
+];
+
+function quizAnswerToCanonical(q, answer) {
+  if (q.type === "slider_unit" && answer?.unit === "min") return answer.value / 60;
+  if (q.type === "slider_unit") return answer?.value ?? 0;
+  return answer;
+}
+
+function quizQuestionDelta(q, answer) {
+  if (answer === undefined || answer === null) return 0;
+  if (q.type === "toggle") return answer === true ? q.points : -q.points;
+  if (q.type === "scale") {
+    const n = q.labels.length; // 0..n-1
+    const mid = (n - 1) / 2;
+    const norm = (answer - mid) / mid; // -1..1, positive = higher index
+    return q.direction === "higher_better" ? norm * q.points : -norm * q.points;
+  }
+  // slider / slider_unit
+  const value = quizAnswerToCanonical(q, answer);
+  if (q.direction === "ideal") {
+    const dist = Math.abs(value - q.ideal) / q.ideal;
+    return clamp(1 - dist, -1, 1) * q.points;
+  }
+  const avg = q.direction === "lower_better" || q.direction === "higher_better"
+    ? (q.avgHours ?? q.avg)
+    : 0;
+  if (!avg) return 0;
+  const ratio = (value - avg) / avg; // positive if value above avg
+  const signed = q.direction === "higher_better" ? ratio : -ratio;
+  return clamp(signed, -1, 1) * q.points;
+}
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+function computeQuizScores(answers) {
+  const totals = {};
+  CATEGORIES.forEach(c => totals[c.key] = 0);
+  QUIZ_QUESTIONS.forEach(q => {
+    totals[q.category] += quizQuestionDelta(q, answers[q.id]);
+  });
+  const scores = {};
+  CATEGORIES.forEach(c => { scores[c.key] = Math.round(clamp(50 + totals[c.key], 0, 100)); });
+  return scores;
+}
+
 function habitCategories(h) {
   if (Array.isArray(h.categories)) return h.categories;
   if (h.category) return [h.category];
@@ -133,13 +227,24 @@ function habitCategories(h) {
 
 function categoryScore(categoryKey) {
   const habits = activeHabits().filter(h => habitCategories(h).includes(categoryKey));
-  if (!habits.length) return 0;
-  const scores = habits.map(h => {
-    const rate = completionRate(h);               // 0-1
-    const streakFactor = Math.min(1, currentStreak(h) / 30); // 0-1, caps at 30-day streak
-    return (rate * 0.6 + streakFactor * 0.4) * 100;
-  });
-  return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+  const quizScore = state.statScores?.[categoryKey];
+  const hasHabits = habits.length > 0;
+  const hasQuiz = quizScore !== undefined && quizScore !== null;
+
+  let habitScore = null;
+  if (hasHabits) {
+    const scores = habits.map(h => {
+      const rate = completionRate(h);
+      const streakFactor = Math.min(1, currentStreak(h) / 30);
+      return (rate * 0.6 + streakFactor * 0.4) * 100;
+    });
+    habitScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+  }
+
+  if (hasHabits && hasQuiz) return Math.round((habitScore + quizScore) / 2);
+  if (hasQuiz) return Math.round(quizScore);
+  if (hasHabits) return Math.round(habitScore);
+  return 0;
 }
 
 // ---------- persistence ----------
@@ -162,14 +267,27 @@ function renderAll() {
 // ---------- pentagon chart ----------
 function renderPentagon() {
   const svg = document.getElementById("pentagon-svg");
+  const scores = CATEGORIES.map(c => categoryScore(c.key));
+  const hasAny = scores.some(s => s > 0);
+  document.getElementById("pentagon-hint").hidden = hasAny;
+
+  const ts = document.getElementById("quiz-timestamp");
+  if (state.statScoresUpdatedAt) {
+    ts.hidden = false;
+    ts.textContent = `Last check-in: ${new Date(state.statScoresUpdatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+  } else {
+    ts.hidden = true;
+  }
+  document.getElementById("open-quiz-btn").textContent = state.statScoresUpdatedAt ? "Retake the Stat Check-In" : "Take the Stat Check-In";
+
+  renderPentagonInto(svg, scores);
+}
+
+function renderPentagonInto(svg, scores) {
   svg.setAttribute("viewBox", "0 0 300 280");
   const cx = 150, cy = 148, maxR = 68;
   const n = CATEGORIES.length;
   const angleFor = (i) => -Math.PI / 2 + (i * 2 * Math.PI) / n;
-
-  const scores = CATEGORIES.map(c => categoryScore(c.key));
-  const hasAny = scores.some(s => s > 0);
-  document.getElementById("pentagon-hint").hidden = hasAny;
 
   function pointAt(i, r) {
     const a = angleFor(i);
@@ -178,29 +296,24 @@ function renderPentagon() {
 
   let svgContent = "";
 
-  // background rings at 25/50/75/100%
   [0.25, 0.5, 0.75, 1].forEach(frac => {
     const pts = CATEGORIES.map((_, i) => pointAt(i, maxR * frac).join(",")).join(" ");
     svgContent += `<polygon points="${pts}" fill="none" stroke="var(--divider)" stroke-width="1"/>`;
   });
 
-  // spokes
   CATEGORIES.forEach((_, i) => {
     const [x, y] = pointAt(i, maxR);
     svgContent += `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="var(--divider)" stroke-width="1"/>`;
   });
 
-  // data polygon
   const dataPts = CATEGORIES.map((c, i) => pointAt(i, maxR * (scores[i] / 100)).join(",")).join(" ");
   svgContent += `<polygon points="${dataPts}" fill="var(--ember)" fill-opacity="0.28" stroke="var(--ember)" stroke-width="2"/>`;
 
-  // dots
   CATEGORIES.forEach((c, i) => {
     const [x, y] = pointAt(i, maxR * (scores[i] / 100));
     svgContent += `<circle cx="${x}" cy="${y}" r="3.5" fill="var(--ember)"/>`;
   });
 
-  // labels - abbreviated + custom names, clamped anchor, generous margin
   CATEGORIES.forEach((c, i) => {
     const [x, y] = pointAt(i, maxR + 34);
     const anchor = Math.abs(x - cx) < 6 ? "middle" : (x > cx ? "start" : "end");
@@ -315,10 +428,18 @@ function savePbFromSheet() {
 
 function activeHabits() { return state.habits.filter(h => !h.archived).sort((a,b) => a.sortOrder - b.sortOrder); }
 
+function timeLabel(t) {
+  if (!t) return null;
+  const [h, m] = t.split(":").map(Number);
+  const period = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m).padStart(2, "0")} ${period}`;
+}
+
 function renderToday() {
   const list = document.getElementById("today-list");
   const empty = document.getElementById("today-empty");
-  const habits = activeHabits();
+  const habits = activeHabits().slice().sort((a, b) => (a.scheduledTime || "23:59").localeCompare(b.scheduledTime || "23:59"));
   document.getElementById("today-date").textContent =
     new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
 
@@ -330,6 +451,7 @@ function renderToday() {
     const done = (h.completions || []).includes(todayISO());
     if (done) doneCount++;
     const streak = currentStreak(h);
+    const time = timeLabel(h.scheduledTime);
 
     const row = document.createElement("div");
     row.className = "row";
@@ -337,7 +459,7 @@ function renderToday() {
       <div class="row-icon" style="background:${h.color}22;color:${h.color}">${h.icon}</div>
       <div class="row-main">
         <div class="row-title">${escapeHtml(h.name)}</div>
-        ${streak > 0 ? `<div class="row-sub">🔥 ${streak} day streak</div>` : ""}
+        <div class="row-sub">${time ? `🕐 ${time}` : ""}${time && streak > 0 ? " · " : ""}${streak > 0 ? `🔥 ${streak} day streak` : ""}</div>
       </div>
       <button class="check-btn ${done ? "done" : ""}" data-habit="${h.id}"></button>
     `;
@@ -376,7 +498,10 @@ function renderHabitsList() {
   activeList.innerHTML = active.map(h => `
     <div class="row">
       <div class="row-icon" style="background:${h.color}22;color:${h.color}">${h.icon}</div>
-      <div class="row-main"><div class="row-title">${escapeHtml(h.name)}</div></div>
+      <div class="row-main">
+        <div class="row-title">${escapeHtml(h.name)}</div>
+        ${h.scheduledTime ? `<div class="row-sub">🕐 ${timeLabel(h.scheduledTime)}</div>` : ""}
+      </div>
       <span class="row-percent">${Math.round(completionRate(h) * 100)}%</span>
       <button class="row-action" data-edit="${h.id}">Edit</button>
       <button class="row-action muted" data-archive="${h.id}">Archive</button>
@@ -513,6 +638,7 @@ function openHabitSheet(habitId) {
   const h = habitId ? state.habits.find(x => x.id === habitId) : null;
   document.getElementById("habit-sheet-title").textContent = h ? "Edit Habit" : "New Habit";
   document.getElementById("habit-name-input").value = h ? h.name : "";
+  document.getElementById("habit-time-input").value = h?.scheduledTime || "";
   pendingIcon = h ? h.icon : ICONS[0];
   pendingColor = h ? h.color : COLORS[0];
   pendingCategories = h ? habitCategories(h) : [];
@@ -525,13 +651,16 @@ function closeHabitSheet() { document.getElementById("habit-sheet-backdrop").hid
 function saveHabitFromSheet() {
   const name = document.getElementById("habit-name-input").value.trim();
   if (!name) return;
+  const scheduledTime = document.getElementById("habit-time-input").value || null;
   if (pendingHabitId) {
     const h = state.habits.find(x => x.id === pendingHabitId);
     h.name = name; h.icon = pendingIcon; h.color = pendingColor; h.categories = pendingCategories.slice();
+    h.scheduledTime = scheduledTime;
     delete h.category;
   } else {
     state.habits.push({
       id: uid(), name, icon: pendingIcon, color: pendingColor, categories: pendingCategories.slice(),
+      scheduledTime,
       createdAt: new Date().toISOString(), archived: false,
       sortOrder: state.habits.length, completions: []
     });
@@ -562,6 +691,141 @@ function saveJournalFromSheet() {
   closeJournalSheet();
   commit();
   showToast("Saved");
+}
+
+// ---------- quiz wizard ----------
+let quizIndex = 0;
+let quizAnswers = {};
+
+function openQuizSheet() {
+  quizIndex = 0;
+  quizAnswers = {};
+  document.getElementById("quiz-sheet-backdrop").hidden = false;
+  renderQuizQuestion();
+}
+function closeQuizSheet() { document.getElementById("quiz-sheet-backdrop").hidden = true; }
+
+function renderQuizQuestion() {
+  const q = QUIZ_QUESTIONS[quizIndex];
+  document.getElementById("quiz-progress-label").textContent = `Question ${quizIndex + 1} of ${QUIZ_QUESTIONS.length}`;
+  document.getElementById("quiz-progress-fill").style.width = `${((quizIndex) / QUIZ_QUESTIONS.length) * 100}%`;
+  document.getElementById("quiz-category-tag").textContent = categoryLabel(q.category);
+  document.getElementById("quiz-prompt").textContent = q.prompt;
+  document.getElementById("quiz-back").style.visibility = quizIndex === 0 ? "hidden" : "visible";
+  document.getElementById("quiz-next").textContent = quizIndex === QUIZ_QUESTIONS.length - 1 ? "Finish" : "Next";
+
+  const area = document.getElementById("quiz-input-area");
+  const existing = quizAnswers[q.id];
+
+  if (q.type === "slider") {
+    const val = existing ?? q.avg ?? q.min;
+    area.innerHTML = `
+      <div class="quiz-slider-value" id="quiz-slider-value">${val} ${q.unit}</div>
+      <div class="quiz-slider-row">
+        <input type="range" id="quiz-slider" min="${q.min}" max="${q.max}" step="${q.step}" value="${val}">
+      </div>
+    `;
+    quizAnswers[q.id] = val;
+    document.getElementById("quiz-slider").addEventListener("input", (e) => {
+      quizAnswers[q.id] = Number(e.target.value);
+      document.getElementById("quiz-slider-value").textContent = `${quizAnswers[q.id]} ${q.unit}`;
+    });
+  } else if (q.type === "slider_unit") {
+    const current = existing || { value: q.avgHours, unit: "hrs" };
+    quizAnswers[q.id] = current;
+    const renderSlider = () => {
+      const isHrs = quizAnswers[q.id].unit === "hrs";
+      const min = 0, max = isHrs ? q.max : q.max * 60, step = isHrs ? 0.5 : 15;
+      area.innerHTML = `
+        <div class="quiz-slider-value" id="quiz-slider-value">${quizAnswers[q.id].value} ${isHrs ? "hrs" : "min"}</div>
+        <div class="quiz-slider-row">
+          <input type="range" id="quiz-slider" min="${min}" max="${max}" step="${step}" value="${quizAnswers[q.id].value}">
+        </div>
+        <div class="quiz-unit-toggle">
+          <button data-unit="hrs" class="${isHrs ? "selected" : ""}">Hours</button>
+          <button data-unit="min" class="${!isHrs ? "selected" : ""}">Minutes</button>
+        </div>
+      `;
+      document.getElementById("quiz-slider").addEventListener("input", (e) => {
+        quizAnswers[q.id].value = Number(e.target.value);
+        document.getElementById("quiz-slider-value").textContent = `${quizAnswers[q.id].value} ${isHrs ? "hrs" : "min"}`;
+      });
+      area.querySelectorAll("[data-unit]").forEach(b => b.addEventListener("click", () => {
+        const newUnit = b.dataset.unit;
+        if (newUnit === quizAnswers[q.id].unit) return;
+        // convert value when switching units
+        quizAnswers[q.id].value = newUnit === "min"
+          ? Math.round(quizAnswers[q.id].value * 60)
+          : Math.round((quizAnswers[q.id].value / 60) * 2) / 2;
+        quizAnswers[q.id].unit = newUnit;
+        renderSlider();
+      }));
+    };
+    renderSlider();
+  } else if (q.type === "toggle") {
+    area.innerHTML = `
+      <div class="quiz-toggle-row">
+        <button data-val="true" class="${existing === true ? "selected" : ""}">${q.goodLabel}</button>
+        <button data-val="false" class="${existing === false ? "selected" : ""}">${q.badLabel}</button>
+      </div>
+    `;
+    area.querySelectorAll("[data-val]").forEach(b => b.addEventListener("click", () => {
+      quizAnswers[q.id] = b.dataset.val === "true";
+      renderQuizQuestion();
+    }));
+  } else if (q.type === "scale") {
+    const val = existing ?? Math.floor((q.labels.length - 1) / 2);
+    quizAnswers[q.id] = val;
+    area.innerHTML = `
+      <div class="quiz-scale-row">
+        ${q.labels.map((l, i) => `<button data-scale="${i}" class="${i === val ? "selected" : ""}">${i + 1}</button>`).join("")}
+      </div>
+      <div class="quiz-scale-labels"><span>${q.labels[0]}</span><span>${q.labels[q.labels.length - 1]}</span></div>
+    `;
+    area.querySelectorAll("[data-scale]").forEach(b => b.addEventListener("click", () => {
+      quizAnswers[q.id] = Number(b.dataset.scale);
+      renderQuizQuestion();
+    }));
+  }
+}
+
+function quizNext() {
+  if (quizIndex < QUIZ_QUESTIONS.length - 1) {
+    quizIndex++;
+    renderQuizQuestion();
+  } else {
+    finishQuiz();
+  }
+}
+function quizBack() {
+  if (quizIndex > 0) { quizIndex--; renderQuizQuestion(); }
+}
+
+function finishQuiz() {
+  state.statScores = computeQuizScores(quizAnswers);
+  state.statScoresUpdatedAt = new Date().toISOString();
+  closeQuizSheet();
+  commit();
+  showQuizResults();
+}
+
+function showQuizResults() {
+  const svg = document.getElementById("quiz-results-pentagon");
+  renderPentagonInto(svg, CATEGORIES.map(c => state.statScores[c.key]));
+  const list = document.getElementById("quiz-results-list");
+  list.innerHTML = CATEGORIES.map(c => `
+    <div class="quiz-results-row">
+      <span class="rr-label">${escapeHtml(categoryLabel(c.key))}</span>
+      <div class="progress-track"><div class="progress-fill" style="width:${state.statScores[c.key]}%"></div></div>
+      <span class="rr-value">${state.statScores[c.key]}</span>
+    </div>
+  `).join("");
+  document.getElementById("quiz-results-backdrop").hidden = false;
+}
+function closeQuizResults() {
+  document.getElementById("quiz-results-backdrop").hidden = true;
+  renderPentagon();
+  renderStats();
 }
 
 // ---------- settings sheet ----------
@@ -662,6 +926,16 @@ function wireEvents() {
   document.getElementById("settings-cancel").addEventListener("click", closeSettingsSheet);
   document.getElementById("settings-save").addEventListener("click", saveSettingsFromSheet);
   document.getElementById("reset-data-btn").addEventListener("click", resetAllData);
+
+  document.getElementById("open-quiz-btn").addEventListener("click", openQuizSheet);
+  document.getElementById("quiz-close").addEventListener("click", closeQuizSheet);
+  document.getElementById("quiz-next").addEventListener("click", quizNext);
+  document.getElementById("quiz-back").addEventListener("click", quizBack);
+  document.getElementById("quiz-results-done").addEventListener("click", closeQuizResults);
+
+  document.getElementById("habit-time-clear").addEventListener("click", () => {
+    document.getElementById("habit-time-input").value = "";
+  });
 }
 
 // ---------- boot ----------
