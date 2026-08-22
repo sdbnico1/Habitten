@@ -33,25 +33,28 @@ function categoryShortLabel(key) {
 
 // ---------- workout exercises & rank tiers ----------
 const TIERS = [
+  { key: "iron", label: "Iron", color: "#8A8D91" },
   { key: "bronze", label: "Bronze", color: "#CD7F32" },
   { key: "silver", label: "Silver", color: "#B9C2CB" },
   { key: "gold", label: "Gold", color: "#F1C40F" },
   { key: "platinum", label: "Platinum", color: "#7FE7E0" },
   { key: "diamond", label: "Diamond", color: "#7FB2FF" },
+  { key: "master", label: "Master", color: "#C77DFF" },
+  { key: "grandmaster", label: "Grandmaster", color: "#FF4D6A" },
 ];
 
 const EXERCISES = [
-  { key: "pushups", name: "Push-ups", unit: "reps", icon: "💪", thresholds: [20, 50, 100, 150, 200] },
-  { key: "crunches", name: "Crunches", unit: "reps", icon: "🔺", thresholds: [30, 75, 150, 250, 350] },
-  { key: "squats", name: "Squats", unit: "reps", icon: "🦵", thresholds: [30, 75, 150, 250, 350] },
-  { key: "lunges", name: "Lunges", unit: "reps", icon: "🚶", thresholds: [20, 50, 100, 160, 220] },
-  { key: "jumpingjacks", name: "Jumping Jacks", unit: "reps", icon: "⭐", thresholds: [30, 75, 150, 250, 350] },
-  { key: "wallsit", name: "Wall Sit", unit: "sec", icon: "🧱", thresholds: [30, 90, 180, 300, 420] },
-  { key: "situps", name: "Sit-ups", unit: "reps", icon: "🔻", thresholds: [30, 75, 150, 250, 350] },
-  { key: "pullups", name: "Pull-ups", unit: "reps", icon: "🧗", thresholds: [3, 8, 15, 25, 35] },
-  { key: "plank", name: "Plank Hold", unit: "sec", icon: "🧘", thresholds: [30, 90, 180, 300, 420] },
-  { key: "burpees", name: "Burpees", unit: "reps", icon: "🔥", thresholds: [15, 30, 60, 100, 150] },
-  { key: "run", name: "Single Run", unit: "km", icon: "🏃", thresholds: [2, 5, 10, 15, 21] },
+  { key: "pushups", name: "Push-ups", unit: "reps", icon: "💪", thresholds: [10, 30, 60, 100, 150, 200, 275, 350] },
+  { key: "crunches", name: "Crunches", unit: "reps", icon: "🔺", thresholds: [15, 40, 80, 150, 250, 350, 450, 600] },
+  { key: "squats", name: "Squats", unit: "reps", icon: "🦵", thresholds: [15, 40, 80, 150, 250, 350, 450, 600] },
+  { key: "lunges", name: "Lunges", unit: "reps", icon: "🚶", thresholds: [10, 30, 60, 100, 160, 220, 300, 400] },
+  { key: "jumpingjacks", name: "Jumping Jacks", unit: "reps", icon: "⭐", thresholds: [15, 40, 80, 150, 250, 350, 450, 600] },
+  { key: "wallsit", name: "Wall Sit", unit: "sec", icon: "🧱", thresholds: [15, 30, 60, 90, 180, 300, 420, 600] },
+  { key: "situps", name: "Sit-ups", unit: "reps", icon: "🔻", thresholds: [15, 40, 80, 150, 250, 350, 450, 600] },
+  { key: "pullups", name: "Pull-ups", unit: "reps", icon: "🧗", thresholds: [1, 3, 6, 10, 15, 22, 30, 40] },
+  { key: "plank", name: "Plank Hold", unit: "sec", icon: "🧘", thresholds: [15, 30, 60, 90, 180, 300, 420, 600] },
+  { key: "burpees", name: "Burpees", unit: "reps", icon: "🔥", thresholds: [5, 15, 30, 50, 80, 120, 160, 220] },
+  { key: "run", name: "Single Run", unit: "km", icon: "🏃", thresholds: [1, 2, 3.5, 5, 8, 10, 15, 21] },
 ];
 
 function tierIndexForValue(exercise, value) {
@@ -61,13 +64,13 @@ function tierIndexForValue(exercise, value) {
   return idx; // -1 = below Bronze, 0..4 = tier reached
 }
 
-// Medal icon for Bronze/Silver/Gold, faceted gem for Platinum/Diamond -
-// a consistent visual language that still escalates with rank.
+// Medal for Iron/Bronze/Silver/Gold, faceted gem for Platinum/Diamond,
+// crown for Master/Grandmaster - three visual tiers of escalating prestige.
 function tierIconSvg(tierIndex, size = 24) {
   if (tierIndex < 0) return "";
   const tier = TIERS[tierIndex];
   const c = tier.color;
-  if (tierIndex <= 2) {
+  if (tierIndex <= 3) {
     return `<svg width="${size}" height="${size}" viewBox="0 0 24 24">
       <circle cx="12" cy="13" r="8" fill="${c}"/>
       <circle cx="12" cy="13" r="8" fill="none" stroke="#00000030" stroke-width="1"/>
@@ -75,11 +78,20 @@ function tierIconSvg(tierIndex, size = 24) {
       <path d="M12 8.5 L14 12 L12 17 L10 12 Z" fill="#FFFFFF" opacity="0.9"/>
     </svg>`;
   }
+  if (tierIndex <= 5) {
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24">
+      <path d="M12 2 L20 9 L12 22 L4 9 Z" fill="${c}"/>
+      <path d="M12 2 L20 9 L12 12 Z" fill="#FFFFFF" opacity="0.35"/>
+      <path d="M4 9 L12 12 L12 22 Z" fill="#000000" opacity="0.12"/>
+      <path d="M12 2 L4 9 L12 12 Z" fill="#FFFFFF" opacity="0.15"/>
+    </svg>`;
+  }
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24">
-    <path d="M12 2 L20 9 L12 22 L4 9 Z" fill="${c}"/>
-    <path d="M12 2 L20 9 L12 12 Z" fill="#FFFFFF" opacity="0.35"/>
-    <path d="M4 9 L12 12 L12 22 Z" fill="#000000" opacity="0.12"/>
-    <path d="M12 2 L4 9 L12 12 Z" fill="#FFFFFF" opacity="0.15"/>
+    <path d="M3 18 L5 8 L9 12 L12 6 L15 12 L19 8 L21 18 Z" fill="${c}"/>
+    <circle cx="5" cy="8" r="1.6" fill="${c}"/>
+    <circle cx="12" cy="6" r="1.8" fill="${c}"/>
+    <circle cx="19" cy="8" r="1.6" fill="${c}"/>
+    <rect x="3" y="18" width="18" height="2.5" rx="1" fill="${c}"/>
   </svg>`;
 }
 
@@ -230,21 +242,14 @@ function categoryScore(categoryKey) {
   const quizScore = state.statScores?.[categoryKey];
   const hasHabits = habits.length > 0;
   const hasQuiz = quizScore !== undefined && quizScore !== null;
+  if (!hasHabits && !hasQuiz) return 0;
 
-  let habitScore = null;
-  if (hasHabits) {
-    const scores = habits.map(h => {
-      const rate = completionRate(h);
-      const streakFactor = Math.min(1, currentStreak(h) / 30);
-      return (rate * 0.6 + streakFactor * 0.4) * 100;
-    });
-    habitScore = scores.reduce((a, b) => a + b, 0) / scores.length;
-  }
+  const perPoint = Math.max(1, state.settings?.completionsPerPoint || 5);
+  const totalCompletions = habits.reduce((sum, h) => sum + (h.completions || []).length, 0);
+  const earnedPoints = Math.floor(totalCompletions / perPoint);
 
-  if (hasHabits && hasQuiz) return Math.round((habitScore + quizScore) / 2);
-  if (hasQuiz) return Math.round(quizScore);
-  if (hasHabits) return Math.round(habitScore);
-  return 0;
+  const base = hasQuiz ? quizScore : 50;
+  return Math.round(clamp(base + earnedPoints, 0, 100));
 }
 
 // ---------- persistence ----------
@@ -854,6 +859,8 @@ function openSettingsSheet() {
     </div>
   `).join("");
 
+  document.getElementById("completions-per-point-input").value = state.settings.completionsPerPoint || 5;
+
   document.getElementById("settings-sheet-backdrop").hidden = false;
 }
 function highlightSettingsColor() {
@@ -872,6 +879,8 @@ function saveSettingsFromSheet() {
     if (val) state.settings.categoryLabels[input.dataset.catKey] = val;
     else delete state.settings.categoryLabels[input.dataset.catKey];
   });
+  const perPoint = Number(document.getElementById("completions-per-point-input").value);
+  state.settings.completionsPerPoint = perPoint > 0 ? perPoint : 5;
   applyAccentColor(state.settings.accentColor);
   document.getElementById("settings-sheet-backdrop").hidden = true;
   commit();
