@@ -106,6 +106,8 @@
     <div class="pentagon-card" id="pentagon-card">
       <svg viewBox="0 0 240 220" id="pentagon-svg"></svg>
       <div class="pentagon-hint" id="pentagon-hint" hidden>Tag habits with a category (Habits tab → edit) to fill this in.</div>
+      <button class="row-action" id="open-quiz-btn" style="margin-top:8px">Take the Stat Check-In</button>
+      <div class="quiz-timestamp" id="quiz-timestamp" hidden></div>
     </div>
 
     <div class="group-label">Per Habit</div>
@@ -173,6 +175,12 @@
 
       <label class="field-label">Categories (pick any that apply)</label>
       <div class="category-grid" id="category-grid"></div>
+
+      <label class="field-label">Scheduled Time (optional)</label>
+      <div class="time-row">
+        <input type="time" id="habit-time-input" class="text-input">
+        <button class="row-action muted" id="habit-time-clear" type="button">Clear</button>
+      </div>
     </div>
   </div>
 </div>
@@ -230,6 +238,41 @@
 
       <label class="field-label">Data</label>
       <button class="row-action danger" id="reset-data-btn" style="padding:10px 0">Reset all data…</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-backdrop" id="quiz-sheet-backdrop" hidden>
+  <div class="sheet quiz-sheet">
+    <div class="sheet-header">
+      <button class="sheet-cancel" id="quiz-close">Close</button>
+      <h2 id="quiz-progress-label">Question 1 of 20</h2>
+      <span style="width:44px"></span>
+    </div>
+    <div class="quiz-progress-track"><div class="quiz-progress-fill" id="quiz-progress-fill"></div></div>
+    <div class="sheet-body" id="quiz-body">
+      <div class="quiz-category-tag" id="quiz-category-tag">Discipline</div>
+      <div class="quiz-prompt" id="quiz-prompt">Question text</div>
+
+      <div id="quiz-input-area"></div>
+    </div>
+    <div class="quiz-footer">
+      <button class="row-action muted" id="quiz-back">Back</button>
+      <button class="sheet-save quiz-next-btn" id="quiz-next">Next</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-backdrop" id="quiz-results-backdrop" hidden>
+  <div class="sheet">
+    <div class="sheet-header">
+      <span style="width:44px"></span>
+      <h2>Your Stat Reading</h2>
+      <button class="sheet-save" id="quiz-results-done">Done</button>
+    </div>
+    <div class="sheet-body">
+      <svg viewBox="0 0 240 220" id="quiz-results-pentagon"></svg>
+      <div class="quiz-results-list" id="quiz-results-list"></div>
     </div>
   </div>
 </div>
