@@ -255,7 +255,7 @@ function categoryScore(categoryKey) {
 // ---------- persistence ----------
 function commit() {
   state.updatedAt = Date.now();
-  scheduleSync(state);
+  scheduleSync(getActiveProfile(), state);
   renderAll();
 }
 
@@ -984,6 +984,12 @@ function wireEvents() {
     if (e.target.files[0]) importBackup(e.target.files[0]);
     e.target.value = "";
   });
+  document.getElementById("switch-profile-btn").addEventListener("click", switchProfile);
+
+  document.getElementById("profile-gate-continue").addEventListener("click", submitProfileGate);
+  document.getElementById("profile-name-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") submitProfileGate();
+  });
 
   document.getElementById("open-quiz-btn").addEventListener("click", openQuizSheet);
   document.getElementById("quiz-close").addEventListener("click", closeQuizSheet);
@@ -1000,13 +1006,46 @@ function wireEvents() {
 (async function boot() {
   buildPickers();
   wireEvents();
-  state = await initState();
-  if (!state.habits) state = defaultState();
-  state.settings = state.settings || { accentColor: COLORS[0], categoryLabels: {} };
-  applyAccentColor(state.settings.accentColor || COLORS[0]);
-  renderAll();
+
+  const existingProfile = getActiveProfile();
+  if (existingProfile) {
+    await startApp(existingProfile);
+  } else {
+    showProfileGate();
+  }
 
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("service-worker.js").catch(() => {});
   }
 })();
+
+function showProfileGate() {
+  document.getElementById("profile-gate").hidden = false;
+  document.getElementById("app").hidden = true;
+}
+
+async function startApp(username) {
+  document.getElementById("profile-gate").hidden = true;
+  document.getElementById("app").hidden = false;
+  state = await initState(username);
+  if (!state.habits) state = defaultState();
+  state.settings = state.settings || { accentColor: COLORS[0], categoryLabels: {} };
+  applyAccentColor(state.settings.accentColor || COLORS[0]);
+  renderAll();
+}
+
+function submitProfileGate() {
+  const raw = document.getElementById("profile-name-input").value;
+  const username = sanitizeUsername(raw);
+  if (!username) return;
+  setActiveProfile(username);
+  startApp(username);
+}
+
+function switchProfile() {
+  if (!confirm("Switch to a different profile? Your current progress stays saved under this name - you can switch back anytime by entering it again.")) return;
+  clearActiveProfile();
+  document.getElementById("settings-sheet-backdrop").hidden = true;
+  document.getElementById("profile-name-input").value = "";
+  showProfileGate();
+}
