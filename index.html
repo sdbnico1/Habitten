@@ -231,20 +231,27 @@
       <button class="sheet-save" id="settings-save">Save</button>
     </div>
     <div class="sheet-body">
+      <div class="settings-section-label">Appearance</div>
       <label class="field-label">Accent Color</label>
       <div class="color-grid" id="settings-color-grid"></div>
 
+      <label class="field-label">Your Name (optional)</label>
+      <input type="text" id="settings-name-input" class="text-input" placeholder="Shown as a greeting on Today">
+
+      <div class="settings-section-label">Categories</div>
       <label class="field-label">Rename Stat Categories</label>
       <div class="settings-category-list" id="settings-category-list"></div>
 
-      <label class="field-label">Habit Pacing</label>
-      <div class="settings-category-row">
-        <span style="width:auto;flex-shrink:0">Completions per +1 point</span>
-        <input type="number" id="completions-per-point-input" class="text-input" min="1" max="30" style="max-width:70px">
-      </div>
-      <div class="quiz-subtitle" style="text-align:left;padding:0">How many times you check off a habit before its category's stat moves by 1 point. Higher = slower, steadier growth.</div>
+      <div class="settings-section-label">Today Screen</div>
+      <label class="toggle-row">
+        <span>Move completed habits to the bottom</span>
+        <input type="checkbox" id="settings-sink-completed">
+      </label>
 
-      <label class="field-label">Data</label>
+      <div class="settings-section-label">Data</div>
+      <button class="row-action" id="export-data-btn" style="padding:10px 0">Export backup (.json)</button>
+      <label class="row-action" for="import-data-input" style="padding:10px 0;display:block;cursor:pointer">Import backup (.json)</label>
+      <input type="file" id="import-data-input" accept="application/json" hidden>
       <button class="row-action danger" id="reset-data-btn" style="padding:10px 0">Reset all data…</button>
     </div>
   </div>
