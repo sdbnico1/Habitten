@@ -949,8 +949,8 @@ async function openLeaderboard() {
         ${idx >= 0 ? tierIconSvg(idx, 22) : `<span style="width:22px"></span>`}
         <div class="leaderboard-name">${escapeHtml(r.username)}${r.username === me ? " (you)" : ""}</div>
         <div style="text-align:right">
-          <div class="leaderboard-points">${r.total_points}</div>
-          <div class="leaderboard-meta">🔥 ${r.best_streak}</div>
+          <div class="leaderboard-points">${r.total_points} <span class="leaderboard-unit">pts</span></div>
+          <div class="leaderboard-meta">🔥 ${r.best_streak} <span class="leaderboard-unit">day streak</span></div>
         </div>
       </div>
     `;
