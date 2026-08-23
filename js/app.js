@@ -1053,7 +1053,17 @@ async function enableNotifications() {
     clearTimeout(timeout);
     try {
       await OneSignal.Notifications.requestPermission();
-      showToast(OneSignal.Notifications.permission ? "Notifications enabled 🎉" : "Notifications weren't allowed");
+      if (OneSignal.Notifications.permission) {
+        const username = getActiveProfile();
+        await OneSignal.login(username); // tags this subscription so the backend can target this person by name
+        if (!state.settings.timezone) {
+          state.settings.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          commit();
+        }
+        showToast("Notifications enabled 🎉");
+      } else {
+        showToast("Notifications weren't allowed");
+      }
     } catch (e) {
       alert("Something went wrong enabling notifications: " + e.message);
     }
@@ -1167,6 +1177,16 @@ async function startApp(username) {
   state.settings = state.settings || { accentColor: COLORS[0], categoryLabels: {} };
   applyAccentColor(state.settings.accentColor || COLORS[0]);
   renderAll();
+
+  if (window.OneSignalDeferred) {
+    window.OneSignalDeferred.push(async (OneSignal) => {
+      try {
+        if (OneSignal.Notifications.permission) {
+          await OneSignal.login(username);
+        }
+      } catch (e) { /* non-fatal */ }
+    });
+  }
 }
 
 function submitProfileGate() {
