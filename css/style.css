@@ -124,6 +124,7 @@ button, input, textarea {
   justify-content: center;
 }
 .icon-btn:active { background: var(--divider); }
+.header-actions { display: flex; gap: 8px; }
 
 /* ===== Streak ring (signature element) ===== */
 .ring-wrap {
@@ -776,6 +777,41 @@ input[type="range"] {
 .quiz-results-row .progress-track { flex: 1; }
 .quiz-results-row .rr-label { width: 84px; font-size: 13px; flex-shrink: 0; }
 .quiz-results-row .rr-value { width: 34px; text-align: right; font-family: var(--font-rounded); font-weight: 700; font-size: 13px; }
+
+.leaderboard-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+}
+.leaderboard-rank {
+  width: 26px;
+  text-align: center;
+  font-family: var(--font-rounded);
+  font-weight: 700;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+.leaderboard-rank.top { color: var(--ember); }
+.leaderboard-name {
+  flex: 1;
+  font-weight: 600;
+  font-size: 15px;
+  text-transform: capitalize;
+}
+.leaderboard-meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.leaderboard-points {
+  font-family: var(--font-rounded);
+  font-weight: 700;
+  color: var(--ember);
+  font-size: 16px;
+}
 
 /* ===== Toast ===== */
 .toast {
