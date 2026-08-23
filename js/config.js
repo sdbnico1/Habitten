@@ -6,5 +6,5 @@
 const CONFIG = {
   SUPABASE_URL: "https://ivpiyttiglbjxwnrbkst.supabase.co",
   SUPABASE_ANON_KEY: "sb_publishable_mbHMnMvokybxPjDXtqhyWQ__y_UHmeH",
-  ONESIGNAL_APP_ID: "PASTE_YOUR_ONESIGNAL_APP_ID_HERE",
+  ONESIGNAL_APP_ID: "95bc2ff4-30bb-42cc-b095-04abee006137",
 };
