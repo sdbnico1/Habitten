@@ -813,6 +813,66 @@ input[type="range"] {
   font-size: 16px;
 }
 
+.day-grid {
+  display: flex;
+  gap: 6px;
+}
+.day-grid button {
+  flex: 1;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 2px solid transparent;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+.day-grid button.selected {
+  border-color: var(--ember);
+  background: color-mix(in srgb, var(--ember) 18%, var(--surface-2));
+  color: var(--text);
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.calendar-daylabel {
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-secondary);
+  font-weight: 700;
+  padding-bottom: 4px;
+}
+.calendar-cell {
+  aspect-ratio: 1;
+  border-radius: 10px;
+  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  position: relative;
+  cursor: pointer;
+}
+.calendar-cell.today { border: 2px solid var(--ember); }
+.calendar-cell.selected { background: var(--ember); color: #1a0d05; }
+.calendar-cell.empty { background: transparent; cursor: default; }
+.calendar-dots { display: flex; gap: 2px; margin-top: 2px; }
+.calendar-dot { width: 4px; height: 4px; border-radius: 50%; }
+.missed-btn {
+  border: none;
+  background: none;
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 0;
+}
+.missed-btn.marked { color: var(--text-secondary); text-decoration: line-through; }
+
 /* ===== Toast ===== */
 .toast {
   position: fixed;
