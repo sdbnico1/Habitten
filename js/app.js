@@ -2,11 +2,21 @@ let state = { habits: [], journal: [], updatedAt: 0 };
 
 const ICONS = ["✓", "🏃", "📖", "🛌", "💧", "🌿", "🏋️", "🧠", "🔥", "✏️", "☕", "🌙", "❤️", "☀️", "🎵", "🧘"];
 const COLORS = ["#FF6A3D", "#5FD98A", "#4A90D9", "#F1C40F", "#9B59B6", "#1ABC9C", "#EC407A", "#E67E22"];
+const DAYS = [
+  { key: "sun", label: "S" }, { key: "mon", label: "M" }, { key: "tue", label: "T" },
+  { key: "wed", label: "W" }, { key: "thu", label: "T" }, { key: "fri", label: "F" }, { key: "sat", label: "S" }
+];
+function todayDayKey() { return DAYS[new Date().getDay()].key; }
+function habitDays(h) {
+  return (h.scheduledDays && h.scheduledDays.length) ? h.scheduledDays : DAYS.map(d => d.key); // no restriction = every day
+}
+function isHabitDueToday(h) { return habitDays(h).includes(todayDayKey()); }
 
 let pendingHabitId = null;
 let pendingIcon = ICONS[0];
 let pendingColor = COLORS[0];
 let pendingCategories = [];
+let pendingDays = [];
 let pendingMood = 3;
 let pendingExerciseKey = null;
 let pendingAccentColor = COLORS[0];
@@ -301,13 +311,17 @@ function renderPentagon() {
   document.getElementById("pentagon-hint").hidden = hasAny;
 
   const ts = document.getElementById("quiz-timestamp");
+  const quizBtn = document.getElementById("open-quiz-btn");
   if (state.statScoresUpdatedAt) {
     ts.hidden = false;
-    ts.textContent = `Last check-in: ${new Date(state.statScoresUpdatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+    ts.textContent = `Locked in on ${new Date(state.statScoresUpdatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })} - one-time only`;
+    quizBtn.textContent = "Stat Check-In Complete ✓";
+    quizBtn.disabled = true;
   } else {
     ts.hidden = true;
+    quizBtn.textContent = "Take the Stat Check-In";
+    quizBtn.disabled = false;
   }
-  document.getElementById("open-quiz-btn").textContent = state.statScoresUpdatedAt ? "Retake the Stat Check-In" : "Take the Stat Check-In";
 
   renderPentagonInto(svg, scores);
 }
@@ -444,10 +458,13 @@ function savePbFromSheet() {
   const val = Number(document.getElementById("pb-value-input").value);
   if (!val || val <= 0) { closePbSheet(); return; }
   state.workoutPBs = state.workoutPBs || {};
-  const existing = state.workoutPBs[pendingExerciseKey] || { best: 0, total: 0 };
+  const existing = state.workoutPBs[pendingExerciseKey] || { best: 0, total: 0, log: [] };
+  const log = (existing.log || []).slice();
+  log.push({ date: todayISO(), value: val });
   state.workoutPBs[pendingExerciseKey] = {
     best: Math.max(existing.best, val),
     total: existing.total + val,
+    log,
     updatedAt: new Date().toISOString(),
   };
   closePbSheet();
@@ -468,7 +485,8 @@ function timeLabel(t) {
 function renderToday() {
   const list = document.getElementById("today-list");
   const empty = document.getElementById("today-empty");
-  let habits = activeHabits().slice().sort((a, b) => (a.scheduledTime || "23:59").localeCompare(b.scheduledTime || "23:59"));
+  let habits = activeHabits().filter(isHabitDueToday).slice()
+    .sort((a, b) => (a.scheduledTime || "23:59").localeCompare(b.scheduledTime || "23:59"));
   if (state.settings?.sinkCompleted) {
     const today = todayISO();
     habits = habits.slice().sort((a, b) => {
@@ -486,11 +504,14 @@ function renderToday() {
   empty.hidden = habits.length > 0;
 
   let doneCount = 0;
+  const yesterday = addDaysISO(todayISO(), -1);
   habits.forEach(h => {
     const done = (h.completions || []).includes(todayISO());
     if (done) doneCount++;
     const streak = currentStreak(h);
     const time = timeLabel(h.scheduledTime);
+    const missedYesterday = (h.missed || []).includes(yesterday);
+    const completedYesterday = (h.completions || []).includes(yesterday);
 
     const row = document.createElement("div");
     row.className = "row";
@@ -499,10 +520,13 @@ function renderToday() {
       <div class="row-main">
         <div class="row-title">${escapeHtml(h.name)}</div>
         <div class="row-sub">${time ? `🕐 ${time}` : ""}${time && streak > 0 ? " · " : ""}${streak > 0 ? `🔥 ${streak} day streak` : ""}</div>
+        ${!completedYesterday ? `<button class="missed-btn ${missedYesterday ? "marked" : ""}" data-missed="${h.id}">${missedYesterday ? "Missed yesterday ✓" : "Missed yesterday?"}</button>` : ""}
       </div>
       <button class="check-btn ${done ? "done" : ""}" data-habit="${h.id}"></button>
     `;
     row.querySelector(".check-btn").addEventListener("click", () => toggleToday(h.id));
+    const missedBtn = row.querySelector("[data-missed]");
+    if (missedBtn) missedBtn.addEventListener("click", () => toggleMissedYesterday(h.id));
     list.appendChild(row);
   });
 
@@ -513,6 +537,17 @@ function renderToday() {
   ring.style.strokeDashoffset = circumference - circumference * frac;
   ring.style.stroke = frac >= 1 && total > 0 ? "var(--sage)" : "var(--ember)";
   document.getElementById("today-ring-label").textContent = `${doneCount}/${total}`;
+}
+
+function toggleMissedYesterday(habitId) {
+  const h = state.habits.find(x => x.id === habitId);
+  if (!h) return;
+  h.missed = h.missed || [];
+  const yesterday = addDaysISO(todayISO(), -1);
+  const idx = h.missed.indexOf(yesterday);
+  if (idx >= 0) h.missed.splice(idx, 1);
+  else h.missed.push(yesterday);
+  commit();
 }
 
 function toggleToday(habitId) {
@@ -539,7 +574,7 @@ function renderHabitsList() {
       <div class="row-icon" style="background:${h.color}22;color:${h.color}">${h.icon}</div>
       <div class="row-main">
         <div class="row-title">${escapeHtml(h.name)}</div>
-        ${h.scheduledTime ? `<div class="row-sub">🕐 ${timeLabel(h.scheduledTime)}</div>` : ""}
+        ${h.scheduledTime ? `<div class="row-sub">🕐 ${timeLabel(h.scheduledTime)}${habitDays(h).length < 7 ? " · " + habitDays(h).map(d => DAYS.find(x => x.key === d).label).join("") : ""}</div>` : (habitDays(h).length < 7 ? `<div class="row-sub">${habitDays(h).map(d => DAYS.find(x => x.key === d).label).join("")}</div>` : "")}
       </div>
       <span class="row-percent">${Math.round(completionRate(h) * 100)}%</span>
       <button class="row-action" data-edit="${h.id}">Edit</button>
@@ -665,11 +700,22 @@ function buildCategoryGrid() {
     else pendingCategories.push(key);
     highlightPickers();
   }));
+
+  const dayGrid = document.getElementById("day-grid");
+  dayGrid.innerHTML = DAYS.map(d => `<button data-day="${d.key}">${d.label}</button>`).join("");
+  dayGrid.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
+    const key = b.dataset.day;
+    const idx = pendingDays.indexOf(key);
+    if (idx >= 0) pendingDays.splice(idx, 1);
+    else pendingDays.push(key);
+    highlightPickers();
+  }));
 }
 function highlightPickers() {
   document.querySelectorAll("#icon-grid button").forEach(b => b.classList.toggle("selected", b.dataset.icon === pendingIcon));
   document.querySelectorAll("#color-grid button").forEach(b => b.classList.toggle("selected", b.dataset.color === pendingColor));
   document.querySelectorAll("#category-grid button").forEach(b => b.classList.toggle("selected", pendingCategories.includes(b.dataset.category)));
+  document.querySelectorAll("#day-grid button").forEach(b => b.classList.toggle("selected", pendingDays.includes(b.dataset.day)));
 }
 
 function openHabitSheet(habitId) {
@@ -681,6 +727,7 @@ function openHabitSheet(habitId) {
   pendingIcon = h ? h.icon : ICONS[0];
   pendingColor = h ? h.color : COLORS[0];
   pendingCategories = h ? habitCategories(h) : [];
+  pendingDays = h ? habitDays(h) : DAYS.map(d => d.key);
   buildCategoryGrid();
   highlightPickers();
   document.getElementById("habit-sheet-backdrop").hidden = false;
@@ -691,17 +738,19 @@ function saveHabitFromSheet() {
   const name = document.getElementById("habit-name-input").value.trim();
   if (!name) return;
   const scheduledTime = document.getElementById("habit-time-input").value || null;
+  const scheduledDays = pendingDays.length === 7 ? [] : pendingDays.slice(); // 7/7 stored as [] = "every day"
   if (pendingHabitId) {
     const h = state.habits.find(x => x.id === pendingHabitId);
     h.name = name; h.icon = pendingIcon; h.color = pendingColor; h.categories = pendingCategories.slice();
     h.scheduledTime = scheduledTime;
+    h.scheduledDays = scheduledDays;
     delete h.category;
   } else {
     state.habits.push({
       id: uid(), name, icon: pendingIcon, color: pendingColor, categories: pendingCategories.slice(),
-      scheduledTime,
+      scheduledTime, scheduledDays,
       createdAt: new Date().toISOString(), archived: false,
-      sortOrder: state.habits.length, completions: []
+      sortOrder: state.habits.length, completions: [], missed: []
     });
   }
   closeHabitSheet();
@@ -735,17 +784,29 @@ function saveJournalFromSheet() {
 // ---------- quiz wizard ----------
 let quizIndex = 0;
 let quizAnswers = {};
+let quizOrder = [];
+
+function shuffledQuizOrder() {
+  const idx = QUIZ_QUESTIONS.map((_, i) => i);
+  for (let i = idx.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [idx[i], idx[j]] = [idx[j], idx[i]];
+  }
+  return idx;
+}
 
 function openQuizSheet() {
+  if (state.statScoresUpdatedAt) return; // one-time only - already locked in
   quizIndex = 0;
   quizAnswers = {};
+  quizOrder = shuffledQuizOrder();
   document.getElementById("quiz-sheet-backdrop").hidden = false;
   renderQuizQuestion();
 }
 function closeQuizSheet() { document.getElementById("quiz-sheet-backdrop").hidden = true; }
 
 function renderQuizQuestion() {
-  const q = QUIZ_QUESTIONS[quizIndex];
+  const q = QUIZ_QUESTIONS[quizOrder[quizIndex]];
   document.getElementById("quiz-progress-label").textContent = `Question ${quizIndex + 1} of ${QUIZ_QUESTIONS.length}`;
   document.getElementById("quiz-progress-fill").style.width = `${((quizIndex) / QUIZ_QUESTIONS.length) * 100}%`;
   document.getElementById("quiz-category-tag").textContent = categoryLabel(q.category);
@@ -948,6 +1009,205 @@ function backToLeaderboard() {
   document.getElementById("leaderboard-sheet-backdrop").hidden = false;
 }
 
+// ---------- calendar ----------
+let calendarViewDate = new Date();
+let calendarSelectedISO = todayISO();
+
+function openCalendar() {
+  calendarViewDate = new Date();
+  calendarSelectedISO = todayISO();
+  document.getElementById("calendar-sheet-backdrop").hidden = false;
+  renderCalendar();
+}
+function closeCalendar() { document.getElementById("calendar-sheet-backdrop").hidden = true; }
+
+function isoForCell(year, month, day) {
+  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function renderCalendar() {
+  const year = calendarViewDate.getFullYear();
+  const month = calendarViewDate.getMonth();
+  document.getElementById("calendar-month-label").textContent =
+    calendarViewDate.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+
+  const grid = document.getElementById("calendar-grid");
+  const firstDayOfWeek = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const habits = activeHabits();
+
+  let html = DAYS.map(d => `<div class="calendar-daylabel">${d.label}</div>`).join("");
+  for (let i = 0; i < firstDayOfWeek; i++) html += `<div class="calendar-cell empty"></div>`;
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const iso = isoForCell(year, month, day);
+    const dayKey = DAYS[new Date(year, month, day).getDay()].key;
+    const dueHabits = habits.filter(h => habitDays(h).includes(dayKey));
+    const isToday = iso === todayISO();
+    const isSelected = iso === calendarSelectedISO;
+    const dots = dueHabits.slice(0, 4).map(h => {
+      const done = (h.completions || []).includes(iso);
+      const missed = (h.missed || []).includes(iso);
+      const color = done ? "var(--sage)" : missed ? "var(--danger)" : h.color;
+      return `<span class="calendar-dot" style="background:${color}"></span>`;
+    }).join("");
+    html += `
+      <div class="calendar-cell ${isToday ? "today" : ""} ${isSelected ? "selected" : ""}" data-date="${iso}">
+        <span>${day}</span>
+        <div class="calendar-dots">${dots}</div>
+      </div>
+    `;
+  }
+  grid.innerHTML = html;
+  grid.querySelectorAll("[data-date]").forEach(cell => {
+    cell.addEventListener("click", () => {
+      calendarSelectedISO = cell.dataset.date;
+      renderCalendar();
+    });
+  });
+
+  renderCalendarDayList(calendarSelectedISO);
+}
+
+function renderCalendarDayList(iso) {
+  const dayKey = DAYS[isoToDate(iso).getDay()].key;
+  const habits = activeHabits().filter(h => habitDays(h).includes(dayKey));
+  const list = document.getElementById("calendar-day-list");
+  if (!habits.length) {
+    list.innerHTML = `<div class="row"><div class="row-sub">No habits scheduled this day</div></div>`;
+    return;
+  }
+  list.innerHTML = habits.map(h => {
+    const done = (h.completions || []).includes(iso);
+    const missed = (h.missed || []).includes(iso);
+    const status = done ? `<span class="tier-pill" style="background:var(--sage);color:#0E1712">Done</span>`
+      : missed ? `<span class="tier-pill" style="background:var(--danger);color:#fff">Missed</span>`
+      : `<span class="row-sub">Upcoming</span>`;
+    return `
+      <div class="row">
+        <div class="row-icon" style="background:${h.color}22;color:${h.color}">${h.icon}</div>
+        <div class="row-main">
+          <div class="row-title">${escapeHtml(h.name)}</div>
+          ${h.scheduledTime ? `<div class="row-sub">🕐 ${timeLabel(h.scheduledTime)}</div>` : ""}
+        </div>
+        ${status}
+      </div>
+    `;
+  }).join("");
+}
+
+function calendarChangeMonth(delta) {
+  calendarViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() + delta, 1);
+  renderCalendar();
+}
+
+// ---------- performance graphs ----------
+let pointsChartInstance = null;
+let exerciseChartInstance = null;
+
+function openGraphs() {
+  document.getElementById("graphs-sheet-backdrop").hidden = false;
+  renderPointsChart();
+  buildExerciseSelect();
+}
+function closeGraphs() { document.getElementById("graphs-sheet-backdrop").hidden = true; }
+
+function renderPointsChart() {
+  const days = 30;
+  const labels = [];
+  const cumulativeByDate = {};
+  const allDates = [];
+  activeHabits().forEach(h => (h.completions || []).forEach(d => allDates.push(d)));
+
+  const startISO = addDaysISO(todayISO(), -(days - 1));
+  for (let i = 0; i < days; i++) {
+    const iso = addDaysISO(startISO, i);
+    labels.push(isoToDate(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" }));
+  }
+  // cumulative total points up through each day in the window
+  const sortedDates = allDates.slice().sort();
+  const data = [];
+  for (let i = 0; i < days; i++) {
+    const iso = addDaysISO(startISO, i);
+    const countUpTo = sortedDates.filter(d => d <= iso).length;
+    data.push(countUpTo);
+  }
+
+  const ctx = document.getElementById("points-chart");
+  if (pointsChartInstance) pointsChartInstance.destroy();
+  pointsChartInstance = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: "Total Points",
+        data,
+        borderColor: getComputedStyle(document.documentElement).getPropertyValue("--ember").trim() || "#FF6A3D",
+        backgroundColor: "transparent",
+        tension: 0.3,
+        pointRadius: 0,
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: "#9B9DA6", maxTicksLimit: 6 }, grid: { display: false } },
+        y: { ticks: { color: "#9B9DA6" }, grid: { color: "#2A2C32" } }
+      }
+    }
+  });
+}
+
+function buildExerciseSelect() {
+  const select = document.getElementById("graph-exercise-select");
+  select.innerHTML = EXERCISES.map(e => `<option value="${e.key}">${e.name}</option>`).join("");
+  select.onchange = () => renderExerciseChart(select.value);
+  renderExerciseChart(select.value || EXERCISES[0].key);
+}
+
+function renderExerciseChart(exerciseKey) {
+  const e = EXERCISES.find(x => x.key === exerciseKey);
+  const pb = state.workoutPBs?.[exerciseKey];
+  const log = (pb?.log || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+  const empty = document.getElementById("exercise-chart-empty");
+  const canvas = document.getElementById("exercise-chart");
+
+  if (!log.length) {
+    empty.hidden = false;
+    canvas.hidden = true;
+    if (exerciseChartInstance) { exerciseChartInstance.destroy(); exerciseChartInstance = null; }
+    return;
+  }
+  empty.hidden = true;
+  canvas.hidden = false;
+
+  const labels = log.map(l => isoToDate(l.date).toLocaleDateString(undefined, { month: "short", day: "numeric" }));
+  const data = log.map(l => l.value);
+
+  if (exerciseChartInstance) exerciseChartInstance.destroy();
+  exerciseChartInstance = new Chart(canvas, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: `${e.name} (${e.unit})`,
+        data,
+        borderColor: "#FF6A3D",
+        backgroundColor: "transparent",
+        tension: 0.3,
+        pointRadius: 3,
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: "#9B9DA6", maxTicksLimit: 6 }, grid: { display: false } },
+        y: { ticks: { color: "#9B9DA6" }, grid: { color: "#2A2C32" } }
+      }
+    }
+  });
+}
+
 // ---------- settings sheet ----------
 function applyAccentColor(color) {
   document.documentElement.style.setProperty("--ember", color);
@@ -1145,6 +1405,14 @@ function wireEvents() {
   document.getElementById("habit-time-clear").addEventListener("click", () => {
     document.getElementById("habit-time-input").value = "";
   });
+
+  document.getElementById("open-calendar-btn").addEventListener("click", openCalendar);
+  document.getElementById("calendar-close").addEventListener("click", closeCalendar);
+  document.getElementById("calendar-prev-month").addEventListener("click", () => calendarChangeMonth(-1));
+  document.getElementById("calendar-next-month").addEventListener("click", () => calendarChangeMonth(1));
+
+  document.getElementById("open-graphs-btn").addEventListener("click", openGraphs);
+  document.getElementById("graphs-close").addEventListener("click", closeGraphs);
 }
 
 // ---------- boot ----------
@@ -1154,7 +1422,7 @@ function wireEvents() {
 
   const existingProfile = getActiveProfile();
   if (existingProfile) {
-    await startApp(existingProfile);
+    await startApp(existingProfile, false);
   } else {
     showProfileGate();
   }
@@ -1169,7 +1437,7 @@ function showProfileGate() {
   document.getElementById("app").hidden = true;
 }
 
-async function startApp(username) {
+async function startApp(username, isNewProfile) {
   document.getElementById("profile-gate").hidden = true;
   document.getElementById("app").hidden = false;
   state = await initState(username);
@@ -1177,6 +1445,11 @@ async function startApp(username) {
   state.settings = state.settings || { accentColor: COLORS[0], categoryLabels: {} };
   applyAccentColor(state.settings.accentColor || COLORS[0]);
   renderAll();
+
+  if (isNewProfile && !state.statScoresUpdatedAt) {
+    switchTab("stats");
+    setTimeout(openQuizSheet, 300);
+  }
 
   if (window.OneSignalDeferred) {
     window.OneSignalDeferred.push(async (OneSignal) => {
@@ -1194,7 +1467,7 @@ function submitProfileGate() {
   const username = sanitizeUsername(raw);
   if (!username) return;
   setActiveProfile(username);
-  startApp(username);
+  startApp(username, true);
 }
 
 function switchProfile() {
