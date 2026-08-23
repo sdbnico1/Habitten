@@ -89,3 +89,30 @@ async function initState(username) {
   }
   return local;
 }
+
+// ---------- leaderboard (separate table, safe/minimal fields only) ----------
+async function pushPublicStats(username, stats) {
+  if (!supabaseClient) return;
+  try {
+    await supabaseClient
+      .from("public_stats")
+      .upsert({ username, ...stats, updated_at: new Date().toISOString() });
+  } catch (e) {
+    console.warn("Leaderboard sync failed:", e);
+  }
+}
+
+async function fetchLeaderboard() {
+  if (!supabaseClient) return [];
+  try {
+    const { data, error } = await supabaseClient
+      .from("public_stats")
+      .select("username, total_points, best_streak, best_rank_index")
+      .order("total_points", { ascending: false });
+    if (error || !data) return [];
+    return data;
+  } catch (e) {
+    console.warn("Leaderboard fetch failed:", e);
+    return [];
+  }
+}

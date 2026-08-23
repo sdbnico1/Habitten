@@ -255,8 +255,22 @@ function categoryScore(categoryKey) {
 // ---------- persistence ----------
 function commit() {
   state.updatedAt = Date.now();
-  scheduleSync(getActiveProfile(), state);
+  const username = getActiveProfile();
+  scheduleSync(username, state);
+  schedulePublicStatsPush(username);
   renderAll();
+}
+
+let publicStatsTimer = null;
+function schedulePublicStatsPush(username) {
+  clearTimeout(publicStatsTimer);
+  publicStatsTimer = setTimeout(() => {
+    const habits = activeHabits();
+    const totalPoints = habits.reduce((sum, h) => sum + (h.completions || []).length, 0);
+    const bestStreak = habits.reduce((m, h) => Math.max(m, longestStreak(h)), 0);
+    const bestRankIndex = overallRankIndex();
+    pushPublicStats(username, { total_points: totalPoints, best_streak: bestStreak, best_rank_index: bestRankIndex });
+  }, 1500);
 }
 
 // ---------- rendering ----------
@@ -843,6 +857,34 @@ function closeQuizResults() {
   renderStats();
 }
 
+// ---------- leaderboard ----------
+async function openLeaderboard() {
+  document.getElementById("leaderboard-sheet-backdrop").hidden = false;
+  const list = document.getElementById("leaderboard-list");
+  list.innerHTML = `<div class="row-sub" style="padding:20px 0;text-align:center">Loading…</div>`;
+  const rows = await fetchLeaderboard();
+  if (!rows.length) {
+    list.innerHTML = `<div class="row-sub" style="padding:20px 0;text-align:center">No one's on the board yet - once you or a friend logs progress, you'll show up here.</div>`;
+    return;
+  }
+  const me = getActiveProfile();
+  list.innerHTML = rows.map((r, i) => {
+    const idx = r.best_rank_index ?? -1;
+    return `
+      <div class="leaderboard-row">
+        <div class="leaderboard-rank ${i < 3 ? "top" : ""}">${i + 1}</div>
+        ${idx >= 0 ? tierIconSvg(idx, 22) : `<span style="width:22px"></span>`}
+        <div class="leaderboard-name">${escapeHtml(r.username)}${r.username === me ? " (you)" : ""}</div>
+        <div style="text-align:right">
+          <div class="leaderboard-points">${r.total_points}</div>
+          <div class="leaderboard-meta">🔥 ${r.best_streak}</div>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+function closeLeaderboard() { document.getElementById("leaderboard-sheet-backdrop").hidden = true; }
+
 // ---------- settings sheet ----------
 function applyAccentColor(color) {
   document.documentElement.style.setProperty("--ember", color);
@@ -930,6 +972,22 @@ function importBackup(file) {
   reader.readAsText(file);
 }
 
+async function enableNotifications() {
+  if (!CONFIG.ONESIGNAL_APP_ID || CONFIG.ONESIGNAL_APP_ID.startsWith("PASTE_")) {
+    alert("Notifications aren't set up yet - add your OneSignal App ID to config.js first (see SETUP.md).");
+    return;
+  }
+  if (!window.OneSignalDeferred) { alert("Notifications are still loading, try again in a moment."); return; }
+  window.OneSignalDeferred.push(async (OneSignal) => {
+    await OneSignal.Notifications.requestPermission();
+    if (OneSignal.Notifications.permission) {
+      showToast("Notifications enabled 🎉");
+    } else {
+      showToast("Notifications weren't allowed");
+    }
+  });
+}
+
 function resetAllData() {
   if (!confirm("This deletes every habit, journal entry, and workout record on this device and in sync. This can't be undone. Continue?")) return;
   if (!confirm("Really sure? This is permanent.")) return;
@@ -976,6 +1034,8 @@ function wireEvents() {
   document.getElementById("pb-save").addEventListener("click", savePbFromSheet);
 
   document.getElementById("open-settings-btn").addEventListener("click", openSettingsSheet);
+  document.getElementById("open-leaderboard-btn").addEventListener("click", openLeaderboard);
+  document.getElementById("leaderboard-close").addEventListener("click", closeLeaderboard);
   document.getElementById("settings-cancel").addEventListener("click", closeSettingsSheet);
   document.getElementById("settings-save").addEventListener("click", saveSettingsFromSheet);
   document.getElementById("reset-data-btn").addEventListener("click", resetAllData);
@@ -985,6 +1045,7 @@ function wireEvents() {
     e.target.value = "";
   });
   document.getElementById("switch-profile-btn").addEventListener("click", switchProfile);
+  document.getElementById("enable-notifications-btn").addEventListener("click", enableNotifications);
 
   document.getElementById("profile-gate-continue").addEventListener("click", submitProfileGate);
   document.getElementById("profile-name-input").addEventListener("keydown", (e) => {
