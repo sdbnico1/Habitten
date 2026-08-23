@@ -263,7 +263,7 @@
 
       <div class="settings-section-label">Notifications</div>
       <button class="row-action" id="enable-notifications-btn" style="padding:10px 0">Enable daily reminders</button>
-      <div class="quiz-subtitle" style="text-align:left;padding:0">Tap to allow notifications, then set your reminder time and message from your OneSignal dashboard (see SETUP.md).</div>
+      <div class="quiz-subtitle" style="text-align:left;padding:0">Tap to allow notifications, then set your reminder time and message from your OneSignal dashboard.</div>
 
       <div class="settings-section-label">Data</div>
       <button class="row-action" id="export-data-btn" style="padding:10px 0">Export backup (.json)</button>
@@ -322,6 +322,17 @@
         <div class="row-sub" style="padding:20px 0;text-align:center">Loading…</div>
       </div>
     </div>
+  </div>
+</div>
+
+<div class="sheet-backdrop" id="profile-detail-backdrop" hidden>
+  <div class="sheet">
+    <div class="sheet-header">
+      <button class="sheet-cancel" id="profile-detail-back">Back</button>
+      <h2 id="profile-detail-name">Profile</h2>
+      <button class="sheet-cancel" id="profile-detail-close">Close</button>
+    </div>
+    <div class="sheet-body" id="profile-detail-body"></div>
   </div>
 </div>
 
