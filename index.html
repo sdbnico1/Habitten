@@ -94,7 +94,10 @@
         <div class="eyebrow">Progress</div>
         <h1>Stats</h1>
       </div>
-      <button class="icon-btn" id="open-settings-btn" aria-label="Settings">⚙</button>
+      <div class="header-actions">
+        <button class="icon-btn" id="open-leaderboard-btn" aria-label="Leaderboard">🏆</button>
+        <button class="icon-btn" id="open-settings-btn" aria-label="Settings">⚙</button>
+      </div>
     </header>
 
     <div class="stat-tiles">
@@ -258,6 +261,10 @@
         <input type="checkbox" id="settings-sink-completed">
       </label>
 
+      <div class="settings-section-label">Notifications</div>
+      <button class="row-action" id="enable-notifications-btn" style="padding:10px 0">Enable daily reminders</button>
+      <div class="quiz-subtitle" style="text-align:left;padding:0">Tap to allow notifications, then set your reminder time and message from your OneSignal dashboard (see SETUP.md).</div>
+
       <div class="settings-section-label">Data</div>
       <button class="row-action" id="export-data-btn" style="padding:10px 0">Export backup (.json)</button>
       <label class="row-action" for="import-data-input" style="padding:10px 0;display:block;cursor:pointer">Import backup (.json)</label>
@@ -303,11 +310,38 @@
   </div>
 </div>
 
+<div class="sheet-backdrop" id="leaderboard-sheet-backdrop" hidden>
+  <div class="sheet">
+    <div class="sheet-header">
+      <span style="width:44px"></span>
+      <h2>Leaderboard</h2>
+      <button class="sheet-cancel" id="leaderboard-close">Close</button>
+    </div>
+    <div class="sheet-body">
+      <div id="leaderboard-list">
+        <div class="row-sub" style="padding:20px 0;text-align:center">Loading…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/config.js"></script>
 <script src="js/sync.js"></script>
 <script src="js/app.js"></script>
+
+<!-- OneSignal Web Push - only actually initializes once a real App ID is set in config.js -->
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+<script>
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  OneSignalDeferred.push(async function (OneSignal) {
+    if (CONFIG.ONESIGNAL_APP_ID && !CONFIG.ONESIGNAL_APP_ID.startsWith("PASTE_")) {
+      await OneSignal.init({ appId: CONFIG.ONESIGNAL_APP_ID });
+      window.__oneSignalReady = true;
+    }
+  });
+</script>
 </body>
 </html>

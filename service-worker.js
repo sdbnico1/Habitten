@@ -1,4 +1,9 @@
-const CACHE_NAME = "habitten-v1";
+// OneSignal's push-notification handling merged into our own service worker,
+// so there's only ever one SW controlling this site (two separate service
+// workers at the same scope would conflict).
+importScripts("https://cdn.onesignal.com/sdks/web/v16/OneSignalSDKWorker.js");
+
+const CACHE_NAME = "habitten-v3";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -27,23 +32,20 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
+// Network-first for the app shell so a redeploy shows up immediately.
+// Falls back to cache only when there's no network (true offline use).
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
-  // Never cache API calls to Supabase - always go to network for data.
-  if (url.hostname.includes("supabase.co")) return;
+  if (url.hostname.includes("supabase.co")) return; // never cache API calls
+  if (event.request.method !== "GET") return;
 
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const network = fetch(event.request)
-        .then((response) => {
-          if (response.ok && event.request.method === "GET") {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          }
-          return response;
-        })
-        .catch(() => cached);
-      return cached || network;
-    })
+    fetch(event.request)
+      .then((response) => {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
