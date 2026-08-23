@@ -107,7 +107,7 @@ async function fetchLeaderboard() {
   try {
     const { data, error } = await supabaseClient
       .from("public_stats")
-      .select("username, total_points, best_streak, best_rank_index")
+      .select("username, total_points, best_streak, best_rank_index, workout_ranks")
       .order("total_points", { ascending: false });
     if (error || !data) return [];
     return data;

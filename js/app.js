@@ -268,8 +268,18 @@ function schedulePublicStatsPush(username) {
     const habits = activeHabits();
     const totalPoints = habits.reduce((sum, h) => sum + (h.completions || []).length, 0);
     const bestStreak = habits.reduce((m, h) => Math.max(m, longestStreak(h)), 0);
-    const bestRankIndex = overallRankIndex();
-    pushPublicStats(username, { total_points: totalPoints, best_streak: bestStreak, best_rank_index: bestRankIndex });
+    const avgRankIndex = overallRankIndex();
+    const workoutBests = {};
+    EXERCISES.forEach(e => {
+      const pb = state.workoutPBs?.[e.key];
+      if (pb) workoutBests[e.key] = pb.best ?? pb.value ?? 0;
+    });
+    pushPublicStats(getActiveProfile(), {
+      total_points: totalPoints,
+      best_streak: bestStreak,
+      best_rank_index: avgRankIndex,
+      workout_ranks: workoutBests,
+    });
   }, 1500);
 }
 
@@ -858,20 +868,22 @@ function closeQuizResults() {
 }
 
 // ---------- leaderboard ----------
+let leaderboardRows = [];
+
 async function openLeaderboard() {
   document.getElementById("leaderboard-sheet-backdrop").hidden = false;
   const list = document.getElementById("leaderboard-list");
   list.innerHTML = `<div class="row-sub" style="padding:20px 0;text-align:center">Loading…</div>`;
-  const rows = await fetchLeaderboard();
-  if (!rows.length) {
+  leaderboardRows = await fetchLeaderboard();
+  if (!leaderboardRows.length) {
     list.innerHTML = `<div class="row-sub" style="padding:20px 0;text-align:center">No one's on the board yet - once you or a friend logs progress, you'll show up here.</div>`;
     return;
   }
   const me = getActiveProfile();
-  list.innerHTML = rows.map((r, i) => {
+  list.innerHTML = leaderboardRows.map((r, i) => {
     const idx = r.best_rank_index ?? -1;
     return `
-      <div class="leaderboard-row">
+      <div class="leaderboard-row" data-profile="${escapeHtml(r.username)}" style="cursor:pointer">
         <div class="leaderboard-rank ${i < 3 ? "top" : ""}">${i + 1}</div>
         ${idx >= 0 ? tierIconSvg(idx, 22) : `<span style="width:22px"></span>`}
         <div class="leaderboard-name">${escapeHtml(r.username)}${r.username === me ? " (you)" : ""}</div>
@@ -882,8 +894,59 @@ async function openLeaderboard() {
       </div>
     `;
   }).join("");
+  list.querySelectorAll("[data-profile]").forEach(row => {
+    row.addEventListener("click", () => openProfileDetail(row.dataset.profile));
+  });
 }
 function closeLeaderboard() { document.getElementById("leaderboard-sheet-backdrop").hidden = true; }
+
+function openProfileDetail(username) {
+  const r = leaderboardRows.find(x => x.username === username);
+  if (!r) return;
+  document.getElementById("leaderboard-sheet-backdrop").hidden = true;
+  document.getElementById("profile-detail-backdrop").hidden = false;
+  document.getElementById("profile-detail-name").textContent = username;
+
+  const avgIdx = r.best_rank_index ?? -1;
+  const ranks = r.workout_ranks || {};
+  const body = document.getElementById("profile-detail-body");
+  body.innerHTML = `
+    <div class="stat-tiles">
+      <div class="stat-tile"><div class="stat-value">${r.total_points}</div><div class="stat-label">Total Points</div></div>
+      <div class="stat-tile"><div class="stat-value">${r.best_streak}</div><div class="stat-label">Best Streak</div></div>
+    </div>
+    <div class="rank-banner">
+      ${avgIdx >= 0 ? `<div class="rank-badge-lg" style="border-color:${TIERS[avgIdx].color};background:${TIERS[avgIdx].color}22">${tierIconSvg(avgIdx, 32)}</div>` : `<div class="rank-badge-lg">—</div>`}
+      <div>
+        <div class="rank-title">${avgIdx >= 0 ? `${TIERS[avgIdx].label} Average` : "Unranked"}</div>
+        <div class="rank-sub">Average across everything they've logged</div>
+      </div>
+    </div>
+    <div class="group-label">Individual Exercises</div>
+    <div class="list">
+      ${EXERCISES.map(e => {
+        const best = ranks[e.key];
+        const idx = best !== undefined ? tierIndexForValue(e, best) : -1;
+        const tier = idx >= 0 ? TIERS[idx] : null;
+        return `
+          <div class="row">
+            <div class="row-icon" style="background:var(--surface-2)">${e.icon}</div>
+            <div class="row-main">
+              <div class="row-title">${e.name}</div>
+              <div class="row-sub">${best !== undefined ? `${best} ${e.unit}` : "Not logged"}</div>
+            </div>
+            ${tier ? `<span class="tier-pill" style="background:${tier.color}22;color:${tier.color};display:flex;align-items:center;gap:4px">${tierIconSvg(idx, 16)}${tier.label}</span>` : ""}
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+function closeProfileDetail() { document.getElementById("profile-detail-backdrop").hidden = true; }
+function backToLeaderboard() {
+  document.getElementById("profile-detail-backdrop").hidden = true;
+  document.getElementById("leaderboard-sheet-backdrop").hidden = false;
+}
 
 // ---------- settings sheet ----------
 function applyAccentColor(color) {
@@ -974,16 +1037,25 @@ function importBackup(file) {
 
 async function enableNotifications() {
   if (!CONFIG.ONESIGNAL_APP_ID || CONFIG.ONESIGNAL_APP_ID.startsWith("PASTE_")) {
-    alert("Notifications aren't set up yet - add your OneSignal App ID to config.js first (see SETUP.md).");
+    alert("Notifications aren't set up yet - add your OneSignal App ID to config.js first.");
     return;
   }
-  if (!window.OneSignalDeferred) { alert("Notifications are still loading, try again in a moment."); return; }
+  showToast("Requesting permission…");
+  let responded = false;
+  const timeout = setTimeout(() => {
+    if (!responded) {
+      alert("Notifications didn't respond. This usually means either the OneSignal App ID in config.js is wrong, or a browser privacy setting / ad-blocker is blocking onesignal.com. Try disabling any content blockers for this site and reload.");
+    }
+  }, 6000);
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
   window.OneSignalDeferred.push(async (OneSignal) => {
-    await OneSignal.Notifications.requestPermission();
-    if (OneSignal.Notifications.permission) {
-      showToast("Notifications enabled 🎉");
-    } else {
-      showToast("Notifications weren't allowed");
+    responded = true;
+    clearTimeout(timeout);
+    try {
+      await OneSignal.Notifications.requestPermission();
+      showToast(OneSignal.Notifications.permission ? "Notifications enabled 🎉" : "Notifications weren't allowed");
+    } catch (e) {
+      alert("Something went wrong enabling notifications: " + e.message);
     }
   });
 }
@@ -1036,6 +1108,8 @@ function wireEvents() {
   document.getElementById("open-settings-btn").addEventListener("click", openSettingsSheet);
   document.getElementById("open-leaderboard-btn").addEventListener("click", openLeaderboard);
   document.getElementById("leaderboard-close").addEventListener("click", closeLeaderboard);
+  document.getElementById("profile-detail-close").addEventListener("click", closeProfileDetail);
+  document.getElementById("profile-detail-back").addEventListener("click", backToLeaderboard);
   document.getElementById("settings-cancel").addEventListener("click", closeSettingsSheet);
   document.getElementById("settings-save").addEventListener("click", saveSettingsFromSheet);
   document.getElementById("reset-data-btn").addEventListener("click", resetAllData);
