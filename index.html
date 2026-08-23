@@ -35,6 +35,7 @@
         <div class="eyebrow" id="today-date">Loading…</div>
         <h1>Today</h1>
       </div>
+      <button class="icon-btn" id="open-calendar-btn" aria-label="Calendar" style="margin-right:8px">📅</button>
       <div class="ring-wrap">
         <svg viewBox="0 0 64 64" class="ring">
           <circle cx="32" cy="32" r="27" class="ring-track"/>
@@ -95,6 +96,7 @@
         <h1>Stats</h1>
       </div>
       <div class="header-actions">
+        <button class="icon-btn" id="open-graphs-btn" aria-label="Performance graphs">📈</button>
         <button class="icon-btn" id="open-leaderboard-btn" aria-label="Leaderboard">🏆</button>
         <button class="icon-btn" id="open-settings-btn" aria-label="Settings">⚙</button>
       </div>
@@ -195,6 +197,9 @@
         <input type="time" id="habit-time-input" class="text-input">
         <button class="row-action muted" id="habit-time-clear" type="button">Clear</button>
       </div>
+
+      <label class="field-label">Days</label>
+      <div class="day-grid" id="day-grid"></div>
     </div>
   </div>
 </div>
@@ -336,8 +341,44 @@
   </div>
 </div>
 
+<div class="sheet-backdrop" id="calendar-sheet-backdrop" hidden>
+  <div class="sheet">
+    <div class="sheet-header">
+      <button class="sheet-cancel" id="calendar-prev-month">‹</button>
+      <h2 id="calendar-month-label">Month</h2>
+      <button class="sheet-cancel" id="calendar-next-month">›</button>
+    </div>
+    <div class="sheet-body">
+      <div class="calendar-grid" id="calendar-grid"></div>
+      <div class="group-label">Selected Day</div>
+      <div class="list" id="calendar-day-list"></div>
+      <button class="row-action" id="calendar-close" style="padding:14px 0;width:100%;text-align:center">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-backdrop" id="graphs-sheet-backdrop" hidden>
+  <div class="sheet">
+    <div class="sheet-header">
+      <span style="width:44px"></span>
+      <h2>Performance</h2>
+      <button class="sheet-cancel" id="graphs-close">Close</button>
+    </div>
+    <div class="sheet-body">
+      <div class="group-label">Total Points (last 30 days)</div>
+      <canvas id="points-chart" height="180"></canvas>
+
+      <div class="group-label">Exercise Progress</div>
+      <select id="graph-exercise-select" class="text-input" style="margin-bottom:12px"></select>
+      <canvas id="exercise-chart" height="180"></canvas>
+      <div class="row-sub" id="exercise-chart-empty" style="text-align:center;padding:20px 0" hidden>No results logged for this exercise yet.</div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast" hidden></div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/config.js"></script>
 <script src="js/sync.js"></script>
